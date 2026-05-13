@@ -3,14 +3,25 @@ using TileAdventure.Config;
 
 namespace TileAdventure.Core
 {
+    /// <summary>
+    /// Orchestrator that wires BoardLogic, RackLogic, and GameState together for one level.
+    /// Owns the lifecycle: create → load level data → relay events → dispose.
+    ///
+    /// This is a plain C# class — no MonoBehaviour. GameplayController is the MonoBehaviour
+    /// that creates and drives the LevelManager each frame.
+    /// </summary>
     public class LevelManager
     {
         private readonly GameConstants _constants;
+
         public BoardLogic Board { get; private set; }
         public RackLogic Rack { get; private set; }
         public GameState State { get; private set; }
 
+        /// <summary> Fired via HandleWin → GameplayController shows win popup. </summary>
         public event Action OnLevelWon;
+
+        /// <summary> Fired via HandleLose → GameplayController shows lose popup. </summary>
         public event Action OnLevelLost;
 
         public LevelManager(GameConstants constants)
@@ -19,6 +30,11 @@ namespace TileAdventure.Core
             Board = new BoardLogic(constants);
         }
 
+        /// <summary>
+        /// Load a level from a pre-authored LevelConfig ScriptableObject.
+        /// If the config has tile placements, those are used directly.
+        /// Otherwise, falls back to procedural generation using the config's difficulty params.
+        /// </summary>
         public void LoadLevel(LevelConfig config)
         {
             Board = new BoardLogic(_constants);
@@ -39,6 +55,10 @@ namespace TileAdventure.Core
             Rack.OnRackOverflow += HandleRackOverflow;
         }
 
+        /// <summary>
+        /// Load a level procedurally using raw difficulty numbers (no ScriptableObject).
+        /// Used when LevelConfig asset is missing or the level was selected without one.
+        /// </summary>
         public void LoadLevelProcedural(int levelNumber, int targetTriples, int layerCount, int activeIcons, int rackSlots)
         {
             Board = new BoardLogic(_constants);
@@ -67,11 +87,18 @@ namespace TileAdventure.Core
             State.MarkLost();
         }
 
+        /// <summary>
+        /// Called every frame from GameplayController.Update() to advance the play timer.
+        /// </summary>
         public void Tick(float deltaTime)
         {
             State?.Tick(deltaTime);
         }
 
+        /// <summary>
+        /// Unsubscribe all event handlers to prevent memory leaks.
+        /// Must be called before discarding this LevelManager (scene restart, go home).
+        /// </summary>
         public void Dispose()
         {
             if (State != null)

@@ -4,10 +4,17 @@ using UnityEngine;
 
 namespace TileAdventure.Services
 {
+    /// <summary>
+    /// Serializable data container for player progress.
+    /// Lives as a JSON file in Application.persistentDataPath.
+    /// </summary>
     [System.Serializable]
     public class SaveData
     {
+        /// <summary> Highest level number the player has unlocked (starts at 1). </summary>
         public int highestUnlockedLevel = 1;
+
+        /// <summary> Per-level best scores (optional, not currently displayed). </summary>
         public List<LevelScore> levelScores = new List<LevelScore>();
 
         [System.Serializable]
@@ -19,6 +26,12 @@ namespace TileAdventure.Services
         }
     }
 
+    /// <summary>
+    /// Plain C# JSON persistence service. Handles save/load of player progress.
+    /// File path: {persistentDataPath}/tile_adventure_save.json
+    ///
+    /// Corrupt saves are silently replaced with a fresh SaveData (graceful degradation).
+    /// </summary>
     public class SaveService
     {
         private readonly string _filePath;
@@ -30,6 +43,9 @@ namespace TileAdventure.Services
             Load();
         }
 
+        /// <summary>
+        /// Load save data from disk. On first launch or corrupt file, returns defaults.
+        /// </summary>
         public SaveData Load()
         {
             if (File.Exists(_filePath))
@@ -42,6 +58,7 @@ namespace TileAdventure.Services
                 }
                 catch
                 {
+                    // Corrupted file — start fresh
                     _cachedData = new SaveData();
                     return _cachedData;
                 }
@@ -51,22 +68,26 @@ namespace TileAdventure.Services
             return _cachedData;
         }
 
+        /// <summary> Write current data to disk (pretty-printed JSON). </summary>
         public void Save()
         {
             var json = JsonUtility.ToJson(_cachedData, true);
             File.WriteAllText(_filePath, json);
         }
 
+        /// <summary> Highest level the player can access. Used by HomeScreen to lock/unlock buttons. </summary>
         public int GetHighestUnlockedLevel()
         {
             return _cachedData?.highestUnlockedLevel ?? 1;
         }
 
+        /// <summary> Can the player play this level? </summary>
         public bool IsLevelUnlocked(int levelNumber)
         {
             return levelNumber <= GetHighestUnlockedLevel();
         }
 
+        /// <summary> Unlock a level (called on win). Only saves if the new level is higher than current max. </summary>
         public void UnlockLevel(int levelNumber)
         {
             if (_cachedData == null) Load();
@@ -77,6 +98,10 @@ namespace TileAdventure.Services
             }
         }
 
+        /// <summary>
+        /// Record a level score (best time and most triples).
+        /// Not currently used in UI, but stored for future features.
+        /// </summary>
         public void RecordLevelScore(int level, int triples, float time)
         {
             if (_cachedData == null) Load();

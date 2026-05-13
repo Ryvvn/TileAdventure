@@ -6,12 +6,25 @@ using UnityEngine.EventSystems;
 
 namespace TileAdventure.Gameplay
 {
+    /// <summary>
+    /// MonoBehaviour view for a single tile. Renders the tile-base background + icon sprite,
+    /// handles tap/click input, visual states (exposed/dimmed), and blocked-tile shake feedback.
+    ///
+    /// Uses IPointerClickHandler (Unity UI event system) — the Canvas Raycaster masks clicks
+    /// to the topmost visible tile at the tap position.
+    ///
+    /// Note: _iconImage and _background are injected via the scene hierarchy (Editor script).
+    /// If missing, the tile renders blank but taps still register.
+    /// </summary>
     public class TileView : MonoBehaviour, IPointerClickHandler
     {
         [SerializeField] private Image _background;
         [SerializeField] private Image _iconImage;
 
+        /// <summary> The TileData this view represents. Set during Initialize(). </summary>
         public TileData Data { get; private set; }
+
+        /// <summary> Fired on valid tap (exposed, not removed, not moving, not double-tap). </summary>
         public event Action<TileView> OnTileTapped;
 
         private RectTransform _rectTransform;
@@ -22,7 +35,12 @@ namespace TileAdventure.Gameplay
             _rectTransform = GetComponent<RectTransform>();
         }
 
-        public void Initialize(TileData data, Sprite iconSprite, Sprite backgroundSprite, Color blockedColor, Color exposedColor)
+        /// <summary>
+        /// Bind this view to a TileData model. Subscribes to exposure changes
+        /// so the visual updates automatically when a covering tile is removed.
+        /// </summary>
+        public void Initialize(TileData data, Sprite iconSprite, Sprite backgroundSprite,
+            Color blockedColor, Color exposedColor)
         {
             Data = data;
             _iconImage.sprite = iconSprite;
@@ -33,11 +51,17 @@ namespace TileAdventure.Gameplay
             data.OnExposureChanged += OnExposureChanged;
         }
 
+        /// <summary> Called automatically when the tile's exposure state changes. </summary>
         private void OnExposureChanged(TileData data)
         {
             UpdateVisual();
         }
 
+        /// <summary>
+        /// Refresh background/icon tint based on current isExposed state.
+        /// Exposed = full white, Blocked = dark gray (dimmed).
+        /// Also called by BoardView.RefreshAllTiles() after match clears.
+        /// </summary>
         public void UpdateVisual()
         {
             if (Data == null || Data.isRemoved) return;
@@ -46,11 +70,19 @@ namespace TileAdventure.Gameplay
             _iconImage.color = exposed ? Color.white : new Color(0.45f, 0.45f, 0.45f, 1f);
         }
 
+        /// <summary>
+        /// Unity UI click handler. Decision flow:
+        ///   1. Ignore if tile is removed, mid-animation, or data is missing
+        ///   2. Debounce double-taps (300ms threshold)
+        ///   3. If blocked: play shake animation and ignore
+        ///   4. If exposed: fire OnTileTapped → GameplayController processes it
+        /// </summary>
         public void OnPointerClick(PointerEventData eventData)
         {
             if (Data == null || Data.isRemoved || Data.isMoving)
                 return;
 
+            // Debounce rapid taps (prevents double-processing from EventSystem)
             if (Time.time - _lastTapTime < 0.3f)
                 return;
 
@@ -65,6 +97,11 @@ namespace TileAdventure.Gameplay
             OnTileTapped?.Invoke(this);
         }
 
+        /// <summary>
+        /// Short horizontal shake when the player taps a blocked (dimmed) tile.
+        /// Uses sinusoidal oscillation with decaying amplitude over 0.15 seconds.
+        /// Async void is acceptable here since it's fire-and-forget visual feedback.
+        /// </summary>
         private async void ShakeBlockedTile()
         {
             var startPos = _rectTransform.anchoredPosition;
@@ -83,11 +120,14 @@ namespace TileAdventure.Gameplay
             _rectTransform.anchoredPosition = startPos;
         }
 
+        /// <summary> Called by BoardView.AnimateTileRemoval() before destruction. </summary>
         public void MarkRemoved()
         {
-            Data.isRemoved = true;
+            if (Data != null)
+                Data.isRemoved = true;
         }
 
+        /// <summary> Clean up event subscription to prevent leaks. </summary>
         private void OnDestroy()
         {
             if (Data != null)

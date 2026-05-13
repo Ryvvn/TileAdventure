@@ -5,6 +5,19 @@ using UnityEngine.UI;
 
 namespace TileAdventure.UI
 {
+    /// <summary>
+    /// Home screen controller. Displays the game logo, a "Play" button,
+    /// and a 5×2 grid of level buttons (1–10).
+    ///
+    /// Level buttons:
+    ///   - Green (btn_green.png) + interactable = unlocked
+    ///   - Orange (btn_orange.png) + non-interactable = locked
+    ///
+    /// Tapping an unlocked level writes the selection to PlayerPrefs then
+    /// loads the Gameplay scene. Tapping "Play" loads level 1 directly.
+    ///
+    /// Level unlock state comes from SaveService (JSON persistence).
+    /// </summary>
     public class HomeScreen : MonoBehaviour
     {
         [SerializeField] private Image _logoImage;
@@ -25,6 +38,10 @@ namespace TileAdventure.UI
             _playButton.onClick.AddListener(OnPlayClicked);
         }
 
+        /// <summary>
+        /// Instantiate 10 level buttons in the grid container.
+        /// Button state (unlocked/locked) is determined by save data.
+        /// </summary>
         private void BuildLevelGrid()
         {
             var highestUnlocked = _saveService.GetHighestUnlockedLevel();
@@ -36,11 +53,14 @@ namespace TileAdventure.UI
                 var label = buttonGo.GetComponentInChildren<Text>();
                 var isUnlocked = i <= highestUnlocked;
 
+                // Set level number text
                 if (label != null)
                     label.text = i.ToString();
 
+                // Locked buttons cannot be clicked
                 button.interactable = isUnlocked;
 
+                // Green = unlocked, Orange = locked
                 Sprite buttonSprite = null;
                 if (isUnlocked)
                     buttonSprite = Resources.Load<Sprite>("Images/UI/btn_green");
@@ -50,6 +70,7 @@ namespace TileAdventure.UI
                 if (buttonSprite != null && button.targetGraphic is Image img)
                     img.sprite = buttonSprite;
 
+                // Capture loop variable for closure
                 int levelNum = i;
                 button.onClick.AddListener(async () => await OnLevelSelected(levelNum));
 
@@ -57,16 +78,21 @@ namespace TileAdventure.UI
             }
         }
 
+        /// <summary> "Play" button shortcut — loads level 1. </summary>
         private async void OnPlayClicked()
         {
             await OnLevelSelected(1);
         }
 
+        /// <summary>
+        /// Validate unlock state, persist selection to PlayerPrefs, load Gameplay scene.
+        /// </summary>
         private async System.Threading.Tasks.Task OnLevelSelected(int levelNumber)
         {
             if (!_saveService.IsLevelUnlocked(levelNumber))
                 return;
 
+            // Pass selected level to GameplayController via PlayerPrefs
             PlayerPrefs.SetInt("SelectedLevel", levelNumber);
             PlayerPrefs.Save();
 

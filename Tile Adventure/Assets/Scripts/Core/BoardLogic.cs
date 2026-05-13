@@ -5,6 +5,14 @@ using TileAdventure.Config;
 
 namespace TileAdventure.Core
 {
+    /// <summary>
+    /// Manages all tiles on the board: creation from config, hit-testing, removal, and exposure.
+    /// Exposure determines whether a tile is tappable:
+    ///   A tile is EXPOSED when NO tile on a higher layer overlaps it in world space.
+    ///
+    /// This is a plain C# class — no MonoBehaviour. BoardView is the MonoBehaviour
+    /// that renders the tiles this class manages.
+    /// </summary>
     public class BoardLogic
     {
         private readonly GameConstants _constants;
@@ -20,6 +28,10 @@ namespace TileAdventure.Core
             _allTiles = new List<TileData>();
         }
 
+        /// <summary>
+        /// Build the board from a pre-authored LevelConfig asset.
+        /// Each TilePlacement maps to one TileData with world position computed from grid position.
+        /// </summary>
         public void InitializeFromConfig(LevelConfig config)
         {
             _allTiles.Clear();
@@ -41,6 +53,10 @@ namespace TileAdventure.Core
             RefreshExposure();
         }
 
+        /// <summary>
+        /// Generate a random board with the given difficulty parameters.
+        /// Uses the same solvability algorithm as LevelGenerator (triple-first construction).
+        /// </summary>
         public void GenerateBoard(int targetTriples, int layerCount, int activeIcons)
         {
             _allTiles.Clear();
@@ -61,11 +77,17 @@ namespace TileAdventure.Core
             RefreshExposure();
         }
 
+        /// <summary>
+        /// Generate tile placements ensuring every triple has all 3 matching tiles present.
+        /// Same algorithm as LevelGenerator.GenerateSolvableLayout.
+        /// </summary>
         private List<(int iconId, int layer, Vector2Int gridPos)> GenerateSolvableLayout(
             int totalTiles, int layerCount, int activeIcons, System.Random rng)
         {
             var result = new List<(int, int, Vector2Int)>();
             var tripleCount = totalTiles / _constants.matchCount;
+
+            // Prevent two tiles occupying the same cell on the same layer
             var usedCells = new HashSet<Vector2Int>[layerCount];
             for (int i = 0; i < layerCount; i++)
                 usedCells[i] = new HashSet<Vector2Int>();
@@ -73,7 +95,6 @@ namespace TileAdventure.Core
             for (int t = 0; t < tripleCount; t++)
             {
                 int iconId = rng.Next(activeIcons);
-                var tripleCells = new List<(int layer, Vector2Int gridPos)>();
 
                 for (int i = 0; i < _constants.matchCount; i++)
                 {
@@ -88,18 +109,19 @@ namespace TileAdventure.Core
                     while (usedCells[layer].Contains(pos) && attempts < 50);
 
                     usedCells[layer].Add(pos);
-                    tripleCells.Add((layer, pos));
-                }
-
-                foreach (var (layer, gridPos) in tripleCells)
-                {
-                    result.Add((iconId, layer, gridPos));
+                    result.Add((iconId, layer, pos));
                 }
             }
 
             return result;
         }
 
+        /// <summary>
+        /// Convert a grid position and layer index to a world-space position on the Canvas.
+        /// Layer offset shifts tiles diagonally so stacked layers are visible.
+        ///
+        /// Example: grid(0,0) on layer 0 → (0, 0), layer 1 → (offset, offset), layer 2 → (2*offset, 2*offset)
+        /// </summary>
         public Vector2 GridToWorld(Vector2Int gridPos, int layer)
         {
             var tileW = _constants.tileSize.x + _constants.tileSpacing;
@@ -111,16 +133,26 @@ namespace TileAdventure.Core
             return new Vector2(x + layerOffX, y + layerOffY);
         }
 
+        /// <summary>
+        /// Recompute exposure for every tile on the board.
+        /// For each tile A, scan all tiles B where B.layer &gt; A.layer.
+        /// If B's world rect overlaps A's world rect, A is blocked (not exposed).
+        ///
+        /// Called after: board initialization, tile removal, any structural change.
+        /// </summary>
         public void RefreshExposure()
         {
+            var halfSize = _constants.tileSize * 0.5f;
+
             foreach (var tile in _allTiles)
             {
                 if (tile.isRemoved) continue;
+
                 bool blocked = false;
                 foreach (var other in _allTiles)
                 {
                     if (other.isRemoved || other.tileId == tile.tileId) continue;
-                    if (tile.Overlaps(other))
+                    if (tile.Overlaps(other, halfSize))
                     {
                         blocked = true;
                         break;
@@ -130,11 +162,17 @@ namespace TileAdventure.Core
             }
         }
 
+        /// <summary> Lookup a tile by its unique ID within this board. </summary>
         public TileData GetTileById(int id)
         {
             return _allTiles.Find(t => t.tileId == id);
         }
 
+        /// <summary>
+        /// Hit-test the board at a screen point (e.g., player tap).
+        /// Returns the topmost exposed tile at that position, or null.
+        /// Iterates in reverse order (last = topmost = highest layer first).
+        /// </summary>
         public TileData GetTileAtScreenPoint(Vector2 screenPoint, Camera cam)
         {
             var worldPoint = cam.ScreenToWorldPoint(screenPoint);
@@ -155,6 +193,10 @@ namespace TileAdventure.Core
             return null;
         }
 
+        /// <summary>
+        /// Mark a tile as removed from the board (moved to rack or matched).
+        /// Triggers RefreshExposure because removing a covering tile may expose tiles below.
+        /// </summary>
         public void RemoveTile(TileData tile)
         {
             tile.isRemoved = true;
@@ -167,6 +209,7 @@ namespace TileAdventure.Core
             }
         }
 
+        /// <summary> How many tiles remain on the board (not yet removed). </summary>
         public int GetRemainingCount()
         {
             int count = 0;

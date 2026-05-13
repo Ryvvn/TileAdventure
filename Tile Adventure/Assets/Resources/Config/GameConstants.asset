@@ -16,8 +16,8 @@ MonoBehaviour:
   matchCount: 3
   totalTileIcons: 14
   tileSize: {x: 80, y: 80}
-  tileSpacing: 4
-  layerVisualOffset: 4
+  tileSpacing: 10
+  layerVisualOffset: 10
   maxLayers: 5
   tileMoveDuration: 0.3
   tileMatchClearDuration: 0.4

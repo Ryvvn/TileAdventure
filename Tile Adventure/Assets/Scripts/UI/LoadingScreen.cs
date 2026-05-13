@@ -4,6 +4,19 @@ using UnityEngine.UI;
 
 namespace TileAdventure.UI
 {
+    /// <summary>
+    /// Loading screen that preloads all required assets before transitioning to Home.
+    ///
+    /// Asset loading order:
+    ///   1. UI sprites (background, buttons, logo, tile-base, hand, failed)
+    ///   2. Tile icons (14 sprites, 1.png through 14.png)
+    ///   3. Audio clips (bg_music, tap, match)
+    ///
+    /// Each asset is checked for null after loading. If any fails,
+    /// an error panel with retry button is shown.
+    ///
+    /// After all assets are loaded, the scene transitions to Home.
+    /// </summary>
     public class LoadingScreen : MonoBehaviour
     {
         [SerializeField] private Slider _progressBar;
@@ -15,6 +28,7 @@ namespace TileAdventure.UI
 
         private async void Start()
         {
+            // Reset UI state
             _errorPanel?.SetActive(false);
             _retryButton?.onClick.AddListener(() =>
             {
@@ -24,6 +38,7 @@ namespace TileAdventure.UI
 
             UpdateProgress(0f, "Loading assets...");
 
+            // --- Phase 1: UI sprites (7 files) ---
             var sprites = new string[]
             {
                 "Images/UI/background", "Images/UI/tile-base", "Images/UI/game_logo",
@@ -46,6 +61,7 @@ namespace TileAdventure.UI
                 UpdateProgress((float)(i + 1) / totalSteps, $"Loading {sprites[i]}...");
             }
 
+            // --- Phase 2: Tile icons (14 files, 1-indexed) ---
             for (int i = 1; i <= 14; i++)
             {
                 var req = Resources.LoadAsync<Sprite>($"Images/Tiles/{i}");
@@ -59,6 +75,7 @@ namespace TileAdventure.UI
                 UpdateProgress((float)(sprites.Length + i) / totalSteps, $"Loading tile {i}...");
             }
 
+            // --- Phase 3: Audio clips (3 files) ---
             var audioClips = new string[] { "bg_music", "tap", "match" };
             for (int i = 0; i < audioClips.Length; i++)
             {
@@ -80,6 +97,7 @@ namespace TileAdventure.UI
             await sceneLoader.LoadSceneAsync(_homeSceneName);
         }
 
+        /// <summary> Display an error message and show the retry panel. </summary>
         private void ShowError(string message)
         {
             if (_statusText != null)
@@ -88,6 +106,7 @@ namespace TileAdventure.UI
                 _errorPanel.SetActive(true);
         }
 
+        /// <summary> Update progress bar and text labels. </summary>
         private void UpdateProgress(float progress, string status)
         {
             if (_progressBar != null)
