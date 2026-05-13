@@ -277,8 +277,8 @@ namespace TileAdventure.Editor
             var winPopupGo = new GameObject("WinPopup", typeof(Image));
             winPopupGo.transform.SetParent(canvasGo.transform, false);
             var winRt = winPopupGo.GetComponent<RectTransform>();
-            winRt.anchorMin = new Vector2(0.15f, 0.3f);
-            winRt.anchorMax = new Vector2(0.85f, 0.7f);
+            winRt.anchorMin = new Vector2(0.1f, 0.2f);
+            winRt.anchorMax = new Vector2(0.9f, 0.6f);
 
             var winTextGo = new GameObject("WinText", typeof(Text));
             winTextGo.transform.SetParent(winPopupGo.transform, false);
@@ -288,14 +288,14 @@ namespace TileAdventure.Editor
             winText.fontSize = 32;
             winText.color = Color.green;
             var wtRt = winTextGo.GetComponent<RectTransform>();
-            wtRt.anchorMin = Vector2.zero;
-            wtRt.anchorMax = Vector2.one;
+            wtRt.anchorMin = new Vector2(0f, 0.1f);
+            wtRt.anchorMax = new Vector2(1f, 0.4f);
 
             var losePopupGo = new GameObject("LosePopup", typeof(Image));
             losePopupGo.transform.SetParent(canvasGo.transform, false);
             var loseRt = losePopupGo.GetComponent<RectTransform>();
-            loseRt.anchorMin = new Vector2(0.15f, 0.3f);
-            loseRt.anchorMax = new Vector2(0.85f, 0.7f);
+            loseRt.anchorMin = new Vector2(0.1f, 0.2f);
+            loseRt.anchorMax = new Vector2(0.9f, 0.6f);
 
             var loseTextGo = new GameObject("LoseText", typeof(Text));
             loseTextGo.transform.SetParent(losePopupGo.transform, false);
@@ -305,11 +305,18 @@ namespace TileAdventure.Editor
             loseText.fontSize = 32;
             loseText.color = Color.red;
             var lstRt = loseTextGo.GetComponent<RectTransform>();
-            lstRt.anchorMin = Vector2.zero;
-            lstRt.anchorMax = Vector2.one;
+            lstRt.anchorMin = new Vector2(0f, 0.1f);
+            lstRt.anchorMax = new Vector2(1f, 0.4f);
 
-            var restartButtonGo = new GameObject("RestartButton", typeof(Image), typeof(Button));
-            var homeButtonGo = new GameObject("HomeButton", typeof(Image), typeof(Button));
+            var restartButtonGo = CreatePopupButton("RestartButton", "RESTART", canvasGo.transform);
+            var restartRt = restartButtonGo.GetComponent<RectTransform>();
+            restartRt.anchorMin = new Vector2(0.25f, 0.52f);
+            restartRt.anchorMax = new Vector2(0.75f, 0.64f);
+
+            var homeButtonGo = CreatePopupButton("HomeButton", "HOME", canvasGo.transform);
+            var homeRt = homeButtonGo.GetComponent<RectTransform>();
+            homeRt.anchorMin = new Vector2(0.25f, 0.68f);
+            homeRt.anchorMax = new Vector2(0.75f, 0.80f);
 
             ApplyGameplaySerializedRefs(gameplayController, boardView, rackView, levelTextGo, progressTextGo,
                 winPopupGo, losePopupGo, tilePrefabGo, restartButtonGo, homeButtonGo);
@@ -336,6 +343,30 @@ namespace TileAdventure.Editor
             }
             AssetDatabase.SaveAssets();
             Debug.Log("10 level configs created in Assets/Resources/Config/Levels/");
+        }
+
+        private static GameObject CreatePopupButton(string name, string label, Transform parent)
+        {
+            var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+            go.transform.SetParent(parent, false);
+            var rt = go.GetComponent<RectTransform>();
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+
+            var labelGo = new GameObject("Label", typeof(Text));
+            labelGo.transform.SetParent(go.transform, false);
+            var t = labelGo.GetComponent<Text>();
+            t.text = label;
+            t.alignment = TextAnchor.MiddleCenter;
+            t.fontSize = 28;
+            t.color = Color.white;
+            var lRt = labelGo.GetComponent<RectTransform>();
+            lRt.anchorMin = Vector2.zero;
+            lRt.anchorMax = Vector2.one;
+            lRt.offsetMin = Vector2.zero;
+            lRt.offsetMax = Vector2.zero;
+
+            return go;
         }
 
         private static void ApplySerializedRefs(GameObject canvasGo, LoadingScreen loadingScreen,

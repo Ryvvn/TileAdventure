@@ -26,18 +26,23 @@ namespace TileAdventure.Gameplay
 
             _rack.OnTileAdded += OnTileAdded;
             _rack.OnMatchCleared += OnMatchCleared;
+            _rack.OnTileShift += OnTileShift;
 
             BuildSlots();
         }
 
         private void BuildSlots()
         {
-            for (int i = 0; i < _rack.Slots.Count; i++)
+            int count = _rack.Slots.Count;
+            float totalWidth = count * _constants.tileSize.x + (count - 1) * _constants.tileSpacing;
+            float startX = -totalWidth / 2f + _constants.tileSize.x / 2f;
+
+            for (int i = 0; i < count; i++)
             {
                 var slotView = Instantiate(_rackTilePrefab, _rackContainer);
                 var rt = slotView.GetComponent<RectTransform>();
 
-                float xPos = i * (_constants.tileSize.x + _constants.tileSpacing);
+                float xPos = startX + i * (_constants.tileSize.x + _constants.tileSpacing);
                 rt.anchoredPosition = new Vector2(xPos, 0f);
                 rt.sizeDelta = _constants.tileSize;
 
@@ -49,7 +54,31 @@ namespace TileAdventure.Gameplay
                 _slotViews.Add(slotView);
             }
         }
+        private void OnTileShift(int slotIndex, TileData tile)
+            {
+            if (tile == null || slotIndex < 0 || slotIndex >= _slotViews.Count) return;
 
+            var slotView = _slotViews[slotIndex];
+            var sprite = tile.iconId < _iconSprites.Length ? _iconSprites[tile.iconId] : null;
+
+            var iconChild = slotView.transform.Find("Icon");
+            if (iconChild != null)
+            {
+                iconChild.GetComponent<Image>().sprite = sprite;
+            }
+            else
+            {
+                var iconGo = new GameObject("Icon", typeof(Image));
+                iconGo.transform.SetParent(slotView.transform, false);
+                var iconImg = iconGo.GetComponent<Image>();
+                iconImg.sprite = sprite;
+                var iconRt = iconGo.GetComponent<RectTransform>();
+                iconRt.anchorMin = new Vector2(0.15f, 0.15f);
+                iconRt.anchorMax = new Vector2(0.85f, 0.85f);
+                iconRt.offsetMin = Vector2.zero;
+                iconRt.offsetMax = Vector2.zero;
+            }
+        }
         private void OnTileAdded(int slotIndex, TileData tile)
         {
             var slotView = _slotViews[slotIndex];
@@ -78,15 +107,13 @@ namespace TileAdventure.Gameplay
 
         private async void OnMatchCleared(int firstIndex, int lastIndex, int iconId)
         {
-            var toClear = new List<TileView>();
-            var toClearCanvasGroups = new List<CanvasGroup>();
+            var affected = new List<(TileView view, CanvasGroup cg)>();
             for (int i = firstIndex; i <= lastIndex; i++)
             {
                 if (_slotViews[i] != null)
                 {
-                    toClear.Add(_slotViews[i]);
                     var cg = _slotViews[i].gameObject.AddComponent<CanvasGroup>();
-                    toClearCanvasGroups.Add(cg);
+                    affected.Add((_slotViews[i], cg));
                 }
             }
 
@@ -98,22 +125,19 @@ namespace TileAdventure.Gameplay
                 elapsed += Time.deltaTime;
                 float t = elapsed / duration;
 
-                for (int i = 0; i < toClear.Count; i++)
+                for (int i = 0; i < affected.Count; i++)
                 {
-                    toClearCanvasGroups[i].alpha = 1f - t;
-                    toClear[i].transform.localScale = Vector3.one * (1f + t * (_constants.tileMatchScaleUp - 1f));
+                    affected[i].cg.alpha = 1f - t;
+                    affected[i].view.transform.localScale = Vector3.one * (1f + t * (_constants.tileMatchScaleUp - 1f));
                 }
 
                 await System.Threading.Tasks.Task.Yield();
             }
 
-            for (int i = 0; i < toClear.Count; i++)
+            for (int i = 0; i < affected.Count; i++)
             {
-                var iconChild = toClear[i].transform.Find("Icon");
-                if (iconChild != null)
-                    Destroy(iconChild.gameObject);
-                Destroy(toClearCanvasGroups[i]);
-                toClear[i].transform.localScale = Vector3.one;
+                Destroy(affected[i].cg);
+                affected[i].view.transform.localScale = Vector3.one;
             }
 
             RefreshRackVisuals();
@@ -167,6 +191,7 @@ namespace TileAdventure.Gameplay
             {
                 _rack.OnTileAdded -= OnTileAdded;
                 _rack.OnMatchCleared -= OnMatchCleared;
+                _rack.OnTileShift -= OnTileShift;
             }
         }
     }

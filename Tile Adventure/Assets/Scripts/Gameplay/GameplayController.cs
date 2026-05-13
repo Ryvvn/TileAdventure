@@ -24,14 +24,18 @@ namespace TileAdventure.Gameplay
         private Sprite _tileBackground;
         private AudioManager _audio;
 
+        private void Start()
+        {
+            var levelNumber = PlayerPrefs.GetInt("SelectedLevel", 1);
+            var config = Resources.Load<LevelConfig>($"Config/Levels/Level_{levelNumber:D2}");
+            Initialize(levelNumber, config);
+        }
+
         public async void Initialize(int levelNumber, LevelConfig config = null)
         {
             _audio = AudioManager.Instance;
             _levelManager = new LevelManager(_constants);
             LoadSprites();
-
-            var selectedLevel = PlayerPrefs.GetInt("SelectedLevel", levelNumber);
-            if (selectedLevel > 0) levelNumber = selectedLevel;
 
             if (config != null)
                 _levelManager.LoadLevel(config);
@@ -69,9 +73,9 @@ namespace TileAdventure.Gameplay
             _iconSprites = new Sprite[_constants.totalTileIcons];
             for (int i = 0; i < _constants.totalTileIcons; i++)
             {
-                _iconSprites[i] = Resources.Load<Sprite>($"Tiles/{i + 1}");
+                _iconSprites[i] = Resources.Load<Sprite>($"Images/Tiles/{i + 1}");
             }
-            _tileBackground = Resources.Load<Sprite>("UI/tile-base");
+            _tileBackground = Resources.Load<Sprite>("Images/UI/tile-base");
         }
 
         private async void OnTileTapped(TileView tileView)
@@ -106,7 +110,6 @@ namespace TileAdventure.Gameplay
             _audio?.PlayMatch();
             _levelManager.State.RecordTripleCleared();
 
-            _rackView.RefreshRackVisuals();
             _boardView.RefreshAllTiles();
             UpdateUI();
         }

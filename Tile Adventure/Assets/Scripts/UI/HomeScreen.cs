@@ -43,15 +43,15 @@ namespace TileAdventure.UI
 
                 Sprite buttonSprite = null;
                 if (isUnlocked)
-                    buttonSprite = Resources.Load<Sprite>("UI/btn_green");
+                    buttonSprite = Resources.Load<Sprite>("Images/UI/btn_green");
                 else
-                    buttonSprite = Resources.Load<Sprite>("UI/btn_orange");
+                    buttonSprite = Resources.Load<Sprite>("Images/UI/btn_orange");
 
                 if (buttonSprite != null && button.targetGraphic is Image img)
                     img.sprite = buttonSprite;
 
                 int levelNum = i;
-                button.onClick.AddListener(() => OnLevelSelected(levelNum));
+                button.onClick.AddListener(async () => await OnLevelSelected(levelNum));
 
                 _levelButtons.Add(button);
             }
