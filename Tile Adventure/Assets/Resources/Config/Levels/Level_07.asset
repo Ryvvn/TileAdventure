@@ -1,0 +1,74 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8e894cdcd2c83f46ac9c0d89aec049a, type: 3}
+  m_Name: Level_07
+  m_EditorClassIdentifier: Assembly-CSharp::TileAdventure.Config.LevelConfig
+  levelNumber: 7
+  targetTriples: 6
+  layerCount: 4
+  activeIconCount: 9
+  rackSlotCount: 6
+  tiles:
+  - iconId: 3
+    layerIndex: 3
+    gridPosition: {x: 2, y: 0}
+  - iconId: 3
+    layerIndex: 1
+    gridPosition: {x: 2, y: 0}
+  - iconId: 3
+    layerIndex: 3
+    gridPosition: {x: 3, y: 3}
+  - iconId: 4
+    layerIndex: 3
+    gridPosition: {x: 1, y: 0}
+  - iconId: 4
+    layerIndex: 3
+    gridPosition: {x: 1, y: 3}
+  - iconId: 4
+    layerIndex: 1
+    gridPosition: {x: 3, y: 0}
+  - iconId: 6
+    layerIndex: 2
+    gridPosition: {x: 0, y: 1}
+  - iconId: 6
+    layerIndex: 1
+    gridPosition: {x: 0, y: 3}
+  - iconId: 6
+    layerIndex: 0
+    gridPosition: {x: 1, y: 2}
+  - iconId: 6
+    layerIndex: 1
+    gridPosition: {x: 0, y: 0}
+  - iconId: 6
+    layerIndex: 0
+    gridPosition: {x: 0, y: 3}
+  - iconId: 6
+    layerIndex: 0
+    gridPosition: {x: 2, y: 3}
+  - iconId: 7
+    layerIndex: 2
+    gridPosition: {x: 0, y: 0}
+  - iconId: 7
+    layerIndex: 2
+    gridPosition: {x: 3, y: 2}
+  - iconId: 7
+    layerIndex: 2
+    gridPosition: {x: 3, y: 0}
+  - iconId: 2
+    layerIndex: 3
+    gridPosition: {x: 2, y: 3}
+  - iconId: 2
+    layerIndex: 2
+    gridPosition: {x: 0, y: 2}
+  - iconId: 2
+    layerIndex: 1
+    gridPosition: {x: 1, y: 0}

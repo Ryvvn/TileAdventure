@@ -1,0 +1,101 @@
+using TileAdventure.Services;
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace TileAdventure.UI
+{
+    public class LoadingScreen : MonoBehaviour
+    {
+        [SerializeField] private Slider _progressBar;
+        [SerializeField] private Text _progressText;
+        [SerializeField] private Text _statusText;
+        [SerializeField] private GameObject _errorPanel;
+        [SerializeField] private Button _retryButton;
+        [SerializeField] private string _homeSceneName = "Home";
+
+        private async void Start()
+        {
+            _errorPanel?.SetActive(false);
+            _retryButton?.onClick.AddListener(() =>
+            {
+                _errorPanel?.SetActive(false);
+                Start();
+            });
+
+            UpdateProgress(0f, "Loading assets...");
+
+            var sprites = new string[]
+            {
+                "Images/UI/background", "Images/UI/tile-base", "Images/UI/game_logo",
+                "Images/UI/btn_green", "Images/UI/btn_orange", "Images/UI/failed",
+                "Images/UI/hand"
+            };
+
+            var totalSteps = sprites.Length + 14 + 3;
+
+            for (int i = 0; i < sprites.Length; i++)
+            {
+                var req = Resources.LoadAsync<Sprite>(sprites[i]);
+                while (!req.isDone)
+                    await System.Threading.Tasks.Task.Yield();
+                if (req.asset == null)
+                {
+                    ShowError($"Failed to load: {sprites[i]}");
+                    return;
+                }
+                UpdateProgress((float)(i + 1) / totalSteps, $"Loading {sprites[i]}...");
+            }
+
+            for (int i = 1; i <= 14; i++)
+            {
+                var req = Resources.LoadAsync<Sprite>($"Images/Tiles/{i}");
+                while (!req.isDone)
+                    await System.Threading.Tasks.Task.Yield();
+                if (req.asset == null)
+                {
+                    ShowError($"Failed to load tile icon: {i}");
+                    return;
+                }
+                UpdateProgress((float)(sprites.Length + i) / totalSteps, $"Loading tile {i}...");
+            }
+
+            var audioClips = new string[] { "bg_music", "tap", "match" };
+            for (int i = 0; i < audioClips.Length; i++)
+            {
+                var req = Resources.LoadAsync<AudioClip>(audioClips[i]);
+                while (!req.isDone)
+                    await System.Threading.Tasks.Task.Yield();
+                if (req.asset == null)
+                {
+                    ShowError($"Failed to load audio: {audioClips[i]}");
+                    return;
+                }
+                UpdateProgress((float)(sprites.Length + 14 + i + 1) / totalSteps, $"Loading audio...");
+            }
+
+            UpdateProgress(1f, "Done!");
+            await System.Threading.Tasks.Task.Delay(500);
+
+            var sceneLoader = new SceneLoader();
+            await sceneLoader.LoadSceneAsync(_homeSceneName);
+        }
+
+        private void ShowError(string message)
+        {
+            if (_statusText != null)
+                _statusText.text = message;
+            if (_errorPanel != null)
+                _errorPanel.SetActive(true);
+        }
+
+        private void UpdateProgress(float progress, string status)
+        {
+            if (_progressBar != null)
+                _progressBar.value = progress;
+            if (_progressText != null)
+                _progressText.text = $"{Mathf.RoundToInt(progress * 100)}%";
+            if (_statusText != null)
+                _statusText.text = status;
+        }
+    }
+}
