@@ -91,6 +91,24 @@ namespace TileAdventure.Core
         ///          iconId=2 → returns 2 (before 3, which is first higher)
         ///          iconId=5 → returns 4 (first empty slot)
         /// </summary>
+        public int GetInsertIndex(int iconId)
+        {
+            return FindInsertIndex(iconId);
+        }
+
+        /// <summary>
+        /// Find the target slot index for a tile with the given iconId.
+        /// The rack is kept sorted by icon ID, with same-icon tiles grouped adjacently.
+        /// A new tile goes:
+        ///   - After the last existing tile with the same icon (grouping)
+        ///   - Before the first tile with a strictly higher icon (sort order)
+        ///   - At the first empty slot if all icons are lower
+        /// 
+        /// Example: rack [1, 1, 3, 4, _, _, _]
+        ///          iconId=1 → returns 2 (after last 1, before 3)
+        ///          iconId=2 → returns 2 (before 3, which is first higher)
+        ///          iconId=5 → returns 4 (first empty slot)
+        /// </summary>
         private int FindInsertIndex(int iconId)
         {
             int lastMatchingSlot = -1;   // rightmost slot containing the SAME icon

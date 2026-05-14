@@ -219,3 +219,77 @@ _No spec-level changes during review. Two patches auto-applied: buttons hidden/s
 
 - Scene auto-generator with Build Settings registration
   [SceneGenerator.cs:15](../../Tile Adventure/Assets/Scripts/Editor/SceneGenerator.cs#L15)
+
+## Spec Change Log
+
+### 2026-05-14 — Pyramid Cascading Tile Layout
+
+**Intent:** Replace the flat grid layout with a pyramid/cascading layout where tiles overlap so the tile below is still partially visible. Classic tile-matching feel.
+
+**Changes:**
+
+| File | Change |
+|------|--------|
+| [GameConstants.cs](../../Tile Adventure/Assets/Scripts/Config/GameConstants.cs#L35-L47) | Added four pyramid layout fields: `gridCellWidth` (48), `gridCellHeight` (40), `pyramidStaggerOffset` (24), `layerVerticalOffset` (28). |
+| [BoardLogic.cs — GridToWorld](../../Tile Adventure/Assets/Scripts/Core/BoardLogic.cs#L133-L140) | Rewrote position math. Tight cell spacing (48×40 vs old 90×90) causes tiles to overlap ~40%. Odd-row stagger via `pyramidStaggerOffset`. Higher layers shift up via `layerVerticalOffset` so lower tiles peek through. |
+| [BoardLogic.cs — GenerateSolvableLayout](../../Tile Adventure/Assets/Scripts/Core/BoardLogic.cs#L94-L95) | Replaced hardcoded `rng.Next(6)` grid with dynamic `gridSize = Ceil(Sqrt(tilesPerLayer * 1.5))`. Tighter cells need a larger grid to avoid all occupied cells. |
+| [LevelGenerator.cs — GenerateSolvableLayout](../../Tile Adventure/Assets/Scripts/Core/LevelGenerator.cs#L93) | Same grid-size fix: `* 1.5f` multiplier matches BoardLogic's private version. |
+
+**Design rationale:** `gridCellHeight = 40` against `tileSize.y = 80` means exactly 50% of a lower tile is hidden by the tile above it — the bottom half gets covered, the top half (with the icon) stays visible. Layer-0 tiles at 100% scale, layer-4 tiles at ~88% scale via `layerScaleFalloff` — sells a subtle depth illusion without affecting readability.
+
+---
+
+### 2026-05-14 — Game-Feel Visual Polish
+
+**Intent:** Five low-cost polish features to make the game feel alive and satisfying.
+
+**Changes:**
+
+| # | Feature | Files | Description |
+|---|---------|-------|-------------|
+| 1 | Hover/touch glow | [TileView.cs](../../Tile Adventure/Assets/Scripts/Gameplay/TileView.cs#L17) + [L109-L123](../../Tile Adventure/Assets/Scripts/Gameplay/TileView.cs#L109-L123) | Added `IPointerEnterHandler` + `IPointerExitHandler`. Exposed tiles pulse to 108% scale on hover, snap back to base scale on exit. Blocked/removed tiles ignore hover. |
+| 2 | Board entrance cascade | [BoardView.cs — BuildBoard](../../Tile Adventure/Assets/Scripts/Gameplay/BoardView.cs#L53-L115) + [AnimateCascadeIn](../../Tile Adventure/Assets/Scripts/Gameplay/BoardView.cs#L117-L132) | `BuildBoard` is now async. Tiles spawn at scale=0, alpha=0, grouped by layer. Each layer fades in with smoothstep, staggered 40ms (layer 0 → layer 1 → …). |
+| 3 | Match-clear particles | [BoardView.cs — SpawnMatchParticles](../../Tile Adventure/Assets/Scripts/Gameplay/BoardView.cs#L243-L271) | Spawns 6 small colored squares (hue derived from iconId) at board center. They fly outward with randomized velocity + deceleration, fading over 0.35s. Called from `GameplayController.OnMatchCleared`. |
+| 4 | Rack snap bounce | [BoardView.cs — AnimateMoveToRack](../../Tile Adventure/Assets/Scripts/Gameplay/BoardView.cs#L213-L228) | After the tile reaches its rack slot, it overshoots 4px downward then smoothstep-settles back over 0.08s. Physical "click" satisfaction. |
+| 5 | Layer scale variance | [BoardView.cs — BuildBoard](../../Tile Adventure/Assets/Scripts/Gameplay/BoardView.cs#L91-L93) | Layer 0 = 100% scale, each higher layer = `1f - layer * layerScaleFalloff` (3% per layer). Cascades correctly through entrance animation. `TileView.SetBaseScale()` anchors the hover-glow math. |
+
+**Tuning (all in GameConstants "Visual Polish" section):** `hoverGlowScale`, `boardCascadeDelayPerLayer`, `boardCascadeDuration`, `rackSnapOvershoot`, `rackSnapBounceDuration`, `layerScaleFalloff`, `matchParticleCount`, `matchParticleSpeed`, `matchParticleDuration`, `matchParticleSize`.
+
+---
+
+### 2026-05-14 — Rack Animation Fixes
+
+**Intent:** Fix coordinate-space bugs and animation ordering in the tap-to-rack pipeline.
+
+**Bug 1 — Coordinate space mismatch (tile flies nowhere):**
+
+| File | Change |
+|------|--------|
+| [RackView.cs — GetSlotWorldPosition](../../Tile Adventure/Assets/Scripts/Gameplay/RackView.cs#L268) | Changed `.anchoredPosition` → `.position` — return world space, not rack-local. |
+| [BoardView.cs — AnimateMoveToRack](../../Tile Adventure/Assets/Scripts/Gameplay/BoardView.cs#L199) | Added `_boardContainer.InverseTransformPoint(rackTargetWorld)` to convert world → board-local before interpolating `rt.anchoredPosition`. |
+
+**Root cause:** A TileView child of `_boardContainer` uses `anchoredPosition` (board-local coordinates). Mixing that with `_rackContainer`-local coordinates produces garbage positions. World-space as common reference fixes it.
+
+**Bug 2 — Shift-after-fly + wrong target slot:**
+
+`OnTileTapped` was calling `Fly to GetOccupiedCount()` (leftmost-empty slot) then `AddTile` (which triggers shift-to-sorted-position). This meant the shift happened after the tile already landed, and the flight targeted the wrong slot.
+
+**Fix — new animation sequence:**
+
+| Step | Animation | Data |
+|------|-----------|------|
+| 1 | Compute `insertIndex = GetInsertIndex(iconId)` | [RackLogic.cs — GetInsertIndex](../../Tile Adventure/Assets/Scripts/Core/RackLogic.cs#L94-L97) (new public wrapper) |
+| 2 | `await rackView.AnimateShiftForInsert(insertIndex, occupiedCount)` | [RackView.cs — AnimateShiftForInsert](../../Tile Adventure/Assets/Scripts/Gameplay/RackView.cs#L231-L269) — reparents icons to `_rackContainer`, slides them right via smoothstep, reparents into next slot |
+| 3 | `await boardView.AnimateMoveToRack(tileView, rackTarget)` where `rackTarget = slot[insertIndex]` | [GameplayController.cs — OnTileTapped](../../Tile Adventure/Assets/Scripts/Gameplay/GameplayController.cs#L133-L164) (restructured) |
+| 4 | `AddTile + RemoveTile` commit | Same as before |
+
+### Review Findings
+
+- [x] [Review][Patch] `AnimateShiftForInsert` — `_slotViews[i+1]` out of bounds when rack is full + match pending [RackView.cs — AnimateShiftForInsert]
+- [x] [Review][Patch] `TileView.OnPointerEnter` hardcodes `1.08f` instead of using `_constants.hoverGlowScale` [TileView.cs — OnPointerEnter]
+- [x] [Review][Patch] `AnimateParticle` — framerate-dependent `speed *= 0.96f` per frame (missing `Time.deltaTime` normalization) [BoardView.cs — AnimateParticle]
+- [x] [Review][Patch] Race condition: `ClearBoard()` destroys objects while `async void` animations (AnimateCascadeIn, AnimateParticle, AnimateTileRemoval) still run [BoardView.cs — BuildBoard/ClearBoard]
+- [x] [Review][Patch] Dead code: `slotWidth` computed but never used in `AnimateShiftForInsert` [RackView.cs — AnimateShiftForInsert]
+- [x] [Review][Patch] Magic number `0.07f` in particle hue calculation — violates "no magic numbers" constraint [BoardView.cs — SpawnMatchParticles]
+- [x] [Review][Defer] `BuildBoard` cascade iterates all layers 0..maxLayers, causing unnecessary delays on empty layers — deferred, minor polish optimization [BoardView.cs — BuildBoard]
+- [x] [Review][Defer] `OnPointerClick` hardcoded `0.3f` debounce (pre-existing, not in this diff) — deferred, pre-existing [TileView.cs — OnPointerClick]

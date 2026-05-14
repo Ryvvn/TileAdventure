@@ -90,7 +90,7 @@ namespace TileAdventure.Gameplay
             _rackView.Initialize(_levelManager.Rack, _iconSprites, _tileBackground);
 
             _boardView.OnTileTapped += OnTileTapped;
-            _boardView.BuildBoard();
+            await _boardView.BuildBoard();
 
             UpdateUI();
 
@@ -127,8 +127,11 @@ namespace TileAdventure.Gameplay
         /// Flow:
         ///   1. Guard: ignore if game is over, tile is removed, or tile is mid-animation
         ///   2. Check overflow: if rack is full with no pending match, trigger lose
-        ///   3. Play tap SFX
-        ///   4. Animate tile from board to rack → on complete: AddTile + RemoveTile
+        ///   3. Compute insert index via rack sorting (icon grouping)
+        ///   4. Animate rack tiles shifting to make room at the insert slot
+        ///   5. Play tap SFX
+        ///   6. Animate tile from board to the correct insert slot
+        ///   7. On complete: AddTile + RemoveTile (data commit)
         /// </summary>
         private async void OnTileTapped(TileView tileView)
         {
@@ -139,7 +142,6 @@ namespace TileAdventure.Gameplay
             if (tile.isRemoved || tile.isMoving)
                 return;
 
-            // If rack is full and no match is possible, immediate loss
             if (_levelManager.Rack.WouldOverflowWithNext())
             {
                 _levelManager.State.MarkLost();
@@ -148,8 +150,12 @@ namespace TileAdventure.Gameplay
 
             _audio?.PlayTap();
 
-            // Target is the current last occupied slot + 1 (leftmost empty)
-            var rackTarget = _rackView.GetSlotWorldPosition(_levelManager.Rack.GetOccupiedCount());
+            int insertIndex = _levelManager.Rack.GetInsertIndex(tile.iconId);
+            int occupiedCount = _levelManager.Rack.GetOccupiedCount();
+
+            await _rackView.AnimateShiftForInsert(insertIndex, occupiedCount);
+
+            var rackTarget = _rackView.GetSlotWorldPosition(insertIndex);
             await _boardView.AnimateMoveToRack(tileView, rackTarget, () =>
             {
                 _levelManager.Rack.AddTile(tile);
@@ -169,7 +175,7 @@ namespace TileAdventure.Gameplay
             _audio?.PlayMatch();
             _levelManager.State.RecordTripleCleared();
 
-            // Board tiles may become exposed after covering tiles are removed
+            _boardView.SpawnMatchParticles(iconId);
             _boardView.RefreshAllTiles();
             UpdateUI();
         }

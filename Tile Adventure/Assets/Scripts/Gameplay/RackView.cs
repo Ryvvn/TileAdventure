@@ -177,16 +177,6 @@ namespace TileAdventure.Gameplay
         /// </summary>
         public void RefreshRackVisuals()
         {
-            // Clean up any stray icons that were mid-animation (parented to rack container)
-            // This prevents duplicate/orphaned icons if a match clears while tiles are shifting.
-            foreach (Transform child in _rackContainer)
-            {
-                if (child.name == "Icon")
-                {
-                    Destroy(child.gameObject);
-                }
-            }
-
             for (int i = 0; i < _slotViews.Count && i < _rack.Slots.Count; i++)
             {
                 var slot = _rack.Slots[i];
@@ -264,24 +254,22 @@ namespace TileAdventure.Gameplay
                 float t = elapsed / duration;
                 t = t * t * (3f - 2f * t);
                 foreach (var (go, start, end, _) in animData)
-                {
-                    if (go != null)
-                        go.transform.position = Vector2.Lerp(start, end, t);
-                }
+                    go.transform.position = Vector2.Lerp(start, end, t);
                 await System.Threading.Tasks.Task.Yield();
             }
 
             foreach (var (go, _, _, targetSlot) in animData)
             {
-                if (go != null)
-                {
-                    go.transform.SetParent(_slotViews[targetSlot].transform, false);
-                    var rt = go.GetComponent<RectTransform>();
-                    rt.anchorMin = new Vector2(0.15f, 0.15f);
-                    rt.anchorMax = new Vector2(0.85f, 0.85f);
-                    rt.offsetMin = Vector2.zero;
-                    rt.offsetMax = Vector2.zero;
-                }
+                var existingIcon = _slotViews[targetSlot].transform.Find("Icon");
+                if (existingIcon != null)
+                    Destroy(existingIcon.gameObject);
+
+                go.transform.SetParent(_slotViews[targetSlot].transform, false);
+                var rt = go.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0.15f, 0.15f);
+                rt.anchorMax = new Vector2(0.85f, 0.85f);
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
             }
         }
 
