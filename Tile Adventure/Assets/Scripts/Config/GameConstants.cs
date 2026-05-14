@@ -30,6 +30,19 @@ namespace TileAdventure.Config
         [Tooltip("Diagonal pixel offset per layer to make stacked tiles visible.")]
         public float layerVisualOffset = 10f;
 
+        [Header("Pyramid Layout")]
+        [Tooltip("Horizontal distance between grid cells (less than tile width for overlap).")]
+        public float gridCellWidth = 48f;
+
+        [Tooltip("Vertical distance between grid cells (less than tile height so lower tile peeks through).")]
+        public float gridCellHeight = 40f;
+
+        [Tooltip("Horizontal stagger for odd rows (creates pyramid/hexagonal feel).")]
+        public float pyramidStaggerOffset = 24f;
+
+        [Tooltip("Vertical shift per layer so lower tiles remain visible below higher layers.")]
+        public float layerVerticalOffset = 28f;
+
         [Header("Board")]
         [Tooltip("Maximum number of layers a board can have.")]
         public int maxLayers = 5;

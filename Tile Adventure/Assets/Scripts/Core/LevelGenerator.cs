@@ -88,8 +88,8 @@ namespace TileAdventure.Core
             for (int i = 0; i < def.layerCount; i++)
                 usedCells[i] = new HashSet<Vector2Int>();
 
-            // Grid size scales with tile count to avoid overcrowding
-            var gridSize = Mathf.Max(4, Mathf.CeilToInt(Mathf.Sqrt(totalTiles / def.layerCount + 1)));
+                // Grid size scales with tile count to avoid overcrowding
+            var gridSize = Mathf.Max(6, Mathf.CeilToInt(Mathf.Sqrt(totalTiles / def.layerCount + 1) * 1.5f));
             var tripleCount = totalTiles / 3;
 
             for (int t = 0; t < tripleCount; t++)

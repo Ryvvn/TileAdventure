@@ -87,10 +87,12 @@ namespace TileAdventure.Core
             var result = new List<(int, int, Vector2Int)>();
             var tripleCount = totalTiles / _constants.matchCount;
 
-            // Prevent two tiles occupying the same cell on the same layer
             var usedCells = new HashSet<Vector2Int>[layerCount];
             for (int i = 0; i < layerCount; i++)
                 usedCells[i] = new HashSet<Vector2Int>();
+
+            var tilesPerLayer = Mathf.CeilToInt((float)totalTiles / layerCount);
+            var gridSize = Mathf.Max(6, Mathf.CeilToInt(Mathf.Sqrt(tilesPerLayer * 1.5f)));
 
             for (int t = 0; t < tripleCount; t++)
             {
@@ -103,7 +105,7 @@ namespace TileAdventure.Core
                     int attempts = 0;
                     do
                     {
-                        pos = new Vector2Int(rng.Next(6), rng.Next(6));
+                        pos = new Vector2Int(rng.Next(gridSize), rng.Next(gridSize));
                         attempts++;
                     }
                     while (usedCells[layer].Contains(pos) && attempts < 50);
@@ -118,19 +120,22 @@ namespace TileAdventure.Core
 
         /// <summary>
         /// Convert a grid position and layer index to a world-space position on the Canvas.
-        /// Layer offset shifts tiles diagonally so stacked layers are visible.
+        /// Uses pyramid/cascading layout: tight cell spacing so tiles overlap, odd-row stagger
+        /// for hexagonal/pyramid feel, and vertical layer offset so lower tiles peek through.
         ///
-        /// Example: grid(0,0) on layer 0 → (0, 0), layer 1 → (offset, offset), layer 2 → (2*offset, 2*offset)
+        /// Layout: gridCellWidth=48, gridCellHeight=40 (both less than tileSize=80 → tiles overlap)
+        ///         pyramidStaggerOffset=24 (half cellWidth, offset on odd rows)
+        ///         layerVerticalOffset=28 (higher layers shift up, lower layers peek from bottom)
+        ///
+        /// Example: grid(0,0) layer0 → (0,0), grid(0,0) layer1 → (28,28)
+        ///          grid(1,0) layer0 → (48,0), grid(0,1) layer0 → (24,40) [odd row stagger]
         /// </summary>
         public Vector2 GridToWorld(Vector2Int gridPos, int layer)
         {
-            var tileW = _constants.tileSize.x + _constants.tileSpacing;
-            var tileH = _constants.tileSize.y + _constants.tileSpacing;
-            var x = gridPos.x * tileW;
-            var y = gridPos.y * tileH;
-            var layerOffX = layer * _constants.layerVisualOffset;
-            var layerOffY = layer * _constants.layerVisualOffset;
-            return new Vector2(x + layerOffX, y + layerOffY);
+            var staggerX = (gridPos.y % 2) * _constants.pyramidStaggerOffset;
+            var x = gridPos.x * _constants.gridCellWidth + staggerX + layer * _constants.layerVerticalOffset;
+            var y = gridPos.y * _constants.gridCellHeight + layer * _constants.layerVerticalOffset;
+            return new Vector2(x, y);
         }
 
         /// <summary>
