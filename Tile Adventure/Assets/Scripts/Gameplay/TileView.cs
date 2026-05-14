@@ -16,7 +16,7 @@ namespace TileAdventure.Gameplay
     /// Note: _iconImage and _background are injected via the scene hierarchy (Editor script).
     /// If missing, the tile renders blank but taps still register.
     /// </summary>
-    public class TileView : MonoBehaviour, IPointerClickHandler
+    public class TileView : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         [SerializeField] private Image _background;
         [SerializeField] private Image _iconImage;
@@ -31,6 +31,8 @@ namespace TileAdventure.Gameplay
         private float _lastTapTime;
         private Color _blockedColor;
         private Color _exposedColor;
+        private Vector3 _baseScale = Vector3.one;
+        private float _hoverScale = 1.08f;
 
         private void Awake()
         {
@@ -53,6 +55,17 @@ namespace TileAdventure.Gameplay
             _iconImage.color = data.isExposed ? exposedColor : blockedColor;
 
             data.OnExposureChanged += OnExposureChanged;
+        }
+
+        public void SetBaseScale(Vector3 scale)
+        {
+            _baseScale = scale;
+            transform.localScale = scale;
+        }
+
+        public void SetHoverScale(float scale)
+        {
+            _hoverScale = scale;
         }
 
         /// <summary> Called automatically when the tile's exposure state changes. </summary>
@@ -99,6 +112,18 @@ namespace TileAdventure.Gameplay
             }
 
             OnTileTapped?.Invoke(this);
+        }
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            if (Data == null || Data.isRemoved || Data.isMoving || !Data.isExposed)
+                return;
+            transform.localScale = _baseScale * _hoverScale;
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            transform.localScale = _baseScale;
         }
 
         /// <summary>

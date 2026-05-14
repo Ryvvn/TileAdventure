@@ -143,7 +143,8 @@ namespace TileAdventure.Gameplay
             {
                 elapsed += Time.deltaTime;
                 float t = elapsed / duration;
-
+                if(affected == null || affected.Count == 0)
+                    break;
                 for (int i = 0; i < affected.Count; i++)
                 {
                     affected[i].cg.alpha = 1f - t;
@@ -176,6 +177,16 @@ namespace TileAdventure.Gameplay
         /// </summary>
         public void RefreshRackVisuals()
         {
+            // Clean up any stray icons that were mid-animation (parented to rack container)
+            // This prevents duplicate/orphaned icons if a match clears while tiles are shifting.
+            foreach (Transform child in _rackContainer)
+            {
+                if (child.name == "Icon")
+                {
+                    Destroy(child.gameObject);
+                }
+            }
+
             for (int i = 0; i < _slotViews.Count && i < _rack.Slots.Count; i++)
             {
                 var slot = _rack.Slots[i];
@@ -221,13 +232,67 @@ namespace TileAdventure.Gameplay
         }
 
         /// <summary>
-        /// Get the anchored position of a rack slot for animation targeting.
+        /// Visually shift icons to open a gap at the target insert index.
+        /// Reparents icon children from slots [insertIndex..occupiedCount-1] to rackContainer,
+        /// animates them sliding right by one slot, then reparents them into the next slot.
+        /// After this, slot[insertIndex] is visually empty and ready for the flying tile.
+        /// </summary>
+        public async System.Threading.Tasks.Task AnimateShiftForInsert(int insertIndex, int occupiedCount)
+        {
+            if (insertIndex >= occupiedCount) return;
+            if (occupiedCount >= _slotViews.Count) return;
+
+            float duration = 0.12f;
+
+            var animData = new List<(GameObject go, Vector2 worldStart, Vector2 worldEnd, int targetSlot)>();
+            for (int i = insertIndex; i < occupiedCount; i++)
+            {
+                var iconChild = _slotViews[i].transform.Find("Icon");
+                if (iconChild == null) continue;
+
+                var worldStart = (Vector2)iconChild.position;
+                iconChild.SetParent(_rackContainer, true);
+                var targetSlotView = _slotViews[i + 1];
+                animData.Add((iconChild.gameObject, worldStart,
+                    (Vector2)targetSlotView.transform.position, i + 1));
+            }
+
+            float elapsed = 0f;
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = elapsed / duration;
+                t = t * t * (3f - 2f * t);
+                foreach (var (go, start, end, _) in animData)
+                {
+                    if (go != null)
+                        go.transform.position = Vector2.Lerp(start, end, t);
+                }
+                await System.Threading.Tasks.Task.Yield();
+            }
+
+            foreach (var (go, _, _, targetSlot) in animData)
+            {
+                if (go != null)
+                {
+                    go.transform.SetParent(_slotViews[targetSlot].transform, false);
+                    var rt = go.GetComponent<RectTransform>();
+                    rt.anchorMin = new Vector2(0.15f, 0.15f);
+                    rt.anchorMax = new Vector2(0.85f, 0.85f);
+                    rt.offsetMin = Vector2.zero;
+                    rt.offsetMax = Vector2.zero;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Get the world position of a rack slot for animation targeting.
         /// Used by GameplayController to compute the destination when moving a tile from board to rack.
         /// </summary>
         public Vector2 GetSlotWorldPosition(int slotIndex)
         {
             if (slotIndex < 0 || slotIndex >= _slotViews.Count) return Vector2.zero;
-            return _slotViews[slotIndex].GetComponent<RectTransform>().anchoredPosition;
+            return _slotViews[slotIndex].GetComponent<RectTransform>().position;
         }
 
         private void OnDestroy()

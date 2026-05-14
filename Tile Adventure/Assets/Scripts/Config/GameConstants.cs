@@ -57,6 +57,40 @@ namespace TileAdventure.Config
         [Tooltip("Scale multiplier at the peak of the match-clear animation (1.3 = 130%).")]
         public float tileMatchScaleUp = 1.3f;
 
+        [Header("Visual Polish")]
+        [Tooltip("Scale multiplier on hover/pointer-enter for exposed tiles.")]
+        public float hoverGlowScale = 1.08f;
+
+        [Tooltip("Seconds between each layer appearing during board entrance cascade.")]
+        public float boardCascadeDelayPerLayer = 0.04f;
+
+        [Tooltip("Duration of a single layer's fade-in during board cascade.")]
+        public float boardCascadeDuration = 0.2f;
+
+        [Tooltip("How much the tile overshoots the rack target before settling (pixels).")]
+        public float rackSnapOvershoot = 4f;
+
+        [Tooltip("Duration of the rack snap settle animation (seconds).")]
+        public float rackSnapBounceDuration = 0.08f;
+
+        [Tooltip("Scale reduction per layer (layer 0 = 100%, layer N = 100% - N * falloff).")]
+        public float layerScaleFalloff = 0.03f;
+
+        [Tooltip("Number of small colored squares spawned on match clear.")]
+        public int matchParticleCount = 6;
+
+        [Tooltip("How far particles travel during match burst (canvas units).")]
+        public float matchParticleSpeed = 30f;
+
+        [Tooltip("Lifetime of a match particle before it fades and destroys.")]
+        public float matchParticleDuration = 0.35f;
+
+        [Tooltip("Size of each match particle square (canvas units).")]
+        public float matchParticleSize = 8f;
+
+        [Tooltip("Hue step per icon ID for match particle coloring (maps 14 icons around the color wheel).")]
+        public float matchParticleHueStep = 0.07f;
+
         [Header("Input")]
         [Tooltip("Minimum seconds between valid taps on the same tile (debounce).")]
         public float doubleTapThreshold = 0.3f;
