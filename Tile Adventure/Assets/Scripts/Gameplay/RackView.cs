@@ -147,6 +147,8 @@ namespace TileAdventure.Gameplay
                     break;
                 for (int i = 0; i < affected.Count; i++)
                 {
+                    if (affected[i].view == null || affected[i].cg == null)
+                        continue;
                     affected[i].cg.alpha = 1f - t;
                     affected[i].view.transform.localScale =
                         Vector3.one * (1f + t * (_constants.tileMatchScaleUp - 1f));
@@ -158,8 +160,10 @@ namespace TileAdventure.Gameplay
             // Cleanup: remove CanvasGroups, reset scales
             for (int i = 0; i < affected.Count; i++)
             {
-                Destroy(affected[i].cg);
-                affected[i].view.transform.localScale = Vector3.one;
+                if (affected[i].cg != null)
+                    Destroy(affected[i].cg);
+                if (affected[i].view != null)
+                    affected[i].view.transform.localScale = Vector3.one;
             }
 
             // Reconcile ALL slots with current data (handles compaction)
