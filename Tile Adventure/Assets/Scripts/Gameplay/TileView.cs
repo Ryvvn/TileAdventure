@@ -29,6 +29,8 @@ namespace TileAdventure.Gameplay
 
         private RectTransform _rectTransform;
         private float _lastTapTime;
+        private Color _blockedColor;
+        private Color _exposedColor;
 
         private void Awake()
         {
@@ -43,6 +45,8 @@ namespace TileAdventure.Gameplay
             Color blockedColor, Color exposedColor)
         {
             Data = data;
+            _blockedColor = blockedColor;
+            _exposedColor = exposedColor;
             _iconImage.sprite = iconSprite;
             _background.sprite = backgroundSprite;
             _background.color = data.isExposed ? exposedColor : blockedColor;
@@ -66,8 +70,8 @@ namespace TileAdventure.Gameplay
         {
             if (Data == null || Data.isRemoved) return;
             bool exposed = Data.isExposed;
-            _background.color = exposed ? Color.white : new Color(0.35f, 0.35f, 0.35f, 1f);
-            _iconImage.color = exposed ? Color.white : new Color(0.45f, 0.45f, 0.45f, 1f);
+            _background.color = exposed ? _exposedColor : _blockedColor;
+            _iconImage.color = exposed ? _exposedColor : _blockedColor;
         }
 
         /// <summary>

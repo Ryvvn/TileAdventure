@@ -113,7 +113,9 @@ namespace TileAdventure.Gameplay
             tileView.MarkRemoved();
 
             var rt = tileView.GetComponent<RectTransform>();
-            var canvasGroup = tileView.gameObject.AddComponent<CanvasGroup>();
+            var canvasGroup = tileView.gameObject.GetComponent<CanvasGroup>();
+            if (canvasGroup == null)
+                canvasGroup = tileView.gameObject.AddComponent<CanvasGroup>();
 
             float duration = _constants.tileMatchClearDuration;
             float elapsed = 0f;

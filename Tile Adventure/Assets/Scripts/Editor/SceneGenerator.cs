@@ -7,6 +7,7 @@ using TileAdventure.Core;
 using TileAdventure.Gameplay;
 using TileAdventure.Services;
 using TileAdventure.UI;
+using System.Collections.Generic;
 
 namespace TileAdventure.Editor
 {
@@ -308,18 +309,25 @@ namespace TileAdventure.Editor
             lstRt.anchorMin = new Vector2(0f, 0.1f);
             lstRt.anchorMax = new Vector2(1f, 0.4f);
 
-            var restartButtonGo = CreatePopupButton("RestartButton", "RESTART", canvasGo.transform);
-            var restartRt = restartButtonGo.GetComponent<RectTransform>();
-            restartRt.anchorMin = new Vector2(0.25f, 0.52f);
-            restartRt.anchorMax = new Vector2(0.75f, 0.64f);
+            CreatePopupButton("RestartButton", "RESTART", canvasGo.transform,
+                new Vector2(0.25f, 0.52f), new Vector2(0.75f, 0.64f));
+            CreatePopupButton("HomeButton", "HOME", canvasGo.transform,
+                new Vector2(0.25f, 0.68f), new Vector2(0.75f, 0.80f));
 
-            var homeButtonGo = CreatePopupButton("HomeButton", "HOME", canvasGo.transform);
-            var homeRt = homeButtonGo.GetComponent<RectTransform>();
-            homeRt.anchorMin = new Vector2(0.25f, 0.68f);
-            homeRt.anchorMax = new Vector2(0.75f, 0.80f);
+            var restartButtonGo = canvasGo.transform.Find("RestartButton").gameObject;
+            var homeButtonGo = canvasGo.transform.Find("HomeButton").gameObject;
 
             ApplyGameplaySerializedRefs(gameplayController, boardView, rackView, levelTextGo, progressTextGo,
                 winPopupGo, losePopupGo, tilePrefabGo, restartButtonGo, homeButtonGo);
+
+            // Add scenes to Build Settings so SceneLoader works out of the box
+            var buildScenes = new List<EditorBuildSettingsScene>
+            {
+                new EditorBuildSettingsScene("Assets/Scenes/Loading.unity", true),
+                new EditorBuildSettingsScene("Assets/Scenes/Home.unity", true),
+                new EditorBuildSettingsScene("Assets/Scenes/Gameplay.unity", true),
+            };
+            EditorBuildSettings.scenes = buildScenes.ToArray();
 
             _ = EditorSceneManager.SaveScene(scene, "Assets/Scenes/Gameplay.unity");
         }
@@ -345,11 +353,14 @@ namespace TileAdventure.Editor
             Debug.Log("10 level configs created in Assets/Resources/Config/Levels/");
         }
 
-        private static GameObject CreatePopupButton(string name, string label, Transform parent)
+        private static GameObject CreatePopupButton(string name, string label, Transform parent,
+            Vector2 anchorMin, Vector2 anchorMax)
         {
             var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = anchorMin;
+            rt.anchorMax = anchorMax;
             rt.offsetMin = Vector2.zero;
             rt.offsetMax = Vector2.zero;
 
@@ -366,17 +377,27 @@ namespace TileAdventure.Editor
             lRt.offsetMin = Vector2.zero;
             lRt.offsetMax = Vector2.zero;
 
+            go.SetActive(false);
+
             return go;
+        }
+
+        private static SerializedProperty FindProp(SerializedObject so, string name)
+        {
+            var prop = so.FindProperty(name);
+            if (prop == null)
+                Debug.LogWarning($"[SceneGenerator] SerializedProperty not found: '{name}' on {so.targetObject.GetType().Name}. Field may have been renamed.");
+            return prop;
         }
 
         private static void ApplySerializedRefs(GameObject canvasGo, LoadingScreen loadingScreen,
             GameObject progressBar, GameObject progressText, GameObject statusText)
         {
             var so = new SerializedObject(loadingScreen);
-            so.FindProperty("_progressBar").objectReferenceValue = progressBar.GetComponent<Slider>();
-            so.FindProperty("_progressText").objectReferenceValue = progressText.GetComponent<Text>();
-            so.FindProperty("_statusText").objectReferenceValue = statusText.GetComponent<Text>();
-            so.FindProperty("_homeSceneName").stringValue = "Home";
+            FindProp(so, "_progressBar").objectReferenceValue = progressBar.GetComponent<Slider>();
+            FindProp(so, "_progressText").objectReferenceValue = progressText.GetComponent<Text>();
+            FindProp(so, "_statusText").objectReferenceValue = statusText.GetComponent<Text>();
+            FindProp(so, "_homeSceneName").stringValue = "Home";
             so.ApplyModifiedProperties();
         }
 
@@ -384,11 +405,11 @@ namespace TileAdventure.Editor
             GameObject canvasGo, GameObject logoGo, GameObject playButtonGo, GameObject gridGo, GameObject levelButtonPrefab)
         {
             var so = new SerializedObject(homeScreen);
-            so.FindProperty("_logoImage").objectReferenceValue = logoGo.GetComponent<Image>();
-            so.FindProperty("_playButton").objectReferenceValue = playButtonGo.GetComponent<Button>();
-            so.FindProperty("_levelGridContainer").objectReferenceValue = gridGo.transform;
-            so.FindProperty("_levelButtonPrefab").objectReferenceValue = levelButtonPrefab;
-            so.FindProperty("_gameplaySceneName").stringValue = "Gameplay";
+            FindProp(so, "_logoImage").objectReferenceValue = logoGo.GetComponent<Image>();
+            FindProp(so, "_playButton").objectReferenceValue = playButtonGo.GetComponent<Button>();
+            FindProp(so, "_levelGridContainer").objectReferenceValue = gridGo.transform;
+            FindProp(so, "_levelButtonPrefab").objectReferenceValue = levelButtonPrefab;
+            FindProp(so, "_gameplaySceneName").stringValue = "Gameplay";
             so.ApplyModifiedProperties();
         }
 
@@ -398,29 +419,29 @@ namespace TileAdventure.Editor
             GameObject restartButtonGo, GameObject homeButtonGo)
         {
             var so = new SerializedObject(ctrl);
-            so.FindProperty("_boardView").objectReferenceValue = boardView;
-            so.FindProperty("_rackView").objectReferenceValue = rackView;
-            so.FindProperty("_constants").objectReferenceValue =
+            FindProp(so, "_boardView").objectReferenceValue = boardView;
+            FindProp(so, "_rackView").objectReferenceValue = rackView;
+            FindProp(so, "_constants").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<GameConstants>("Assets/Resources/Config/GameConstants.asset");
-            so.FindProperty("_levelText").objectReferenceValue = levelTextGo.GetComponent<Text>();
-            so.FindProperty("_progressText").objectReferenceValue = progressTextGo.GetComponent<Text>();
-            so.FindProperty("_winPopup").objectReferenceValue = winPopup;
-            so.FindProperty("_losePopup").objectReferenceValue = losePopup;
-            so.FindProperty("_restartButton").objectReferenceValue = restartButtonGo.GetComponent<Button>();
-            so.FindProperty("_homeButton").objectReferenceValue = homeButtonGo.GetComponent<Button>();
+            FindProp(so, "_levelText").objectReferenceValue = levelTextGo.GetComponent<Text>();
+            FindProp(so, "_progressText").objectReferenceValue = progressTextGo.GetComponent<Text>();
+            FindProp(so, "_winPopup").objectReferenceValue = winPopup;
+            FindProp(so, "_losePopup").objectReferenceValue = losePopup;
+            FindProp(so, "_restartButton").objectReferenceValue = restartButtonGo.GetComponent<Button>();
+            FindProp(so, "_homeButton").objectReferenceValue = homeButtonGo.GetComponent<Button>();
             so.ApplyModifiedProperties();
 
             var bvSo = new SerializedObject(boardView);
-            bvSo.FindProperty("_tilePrefab").objectReferenceValue = tilePrefab.GetComponent<TileView>();
-            bvSo.FindProperty("_boardContainer").objectReferenceValue = boardView.GetComponent<RectTransform>();
-            bvSo.FindProperty("_constants").objectReferenceValue =
+            FindProp(bvSo, "_tilePrefab").objectReferenceValue = tilePrefab.GetComponent<TileView>();
+            FindProp(bvSo, "_boardContainer").objectReferenceValue = boardView.GetComponent<RectTransform>();
+            FindProp(bvSo, "_constants").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<GameConstants>("Assets/Resources/Config/GameConstants.asset");
             bvSo.ApplyModifiedProperties();
 
             var rvSo = new SerializedObject(rackView);
-            rvSo.FindProperty("_rackContainer").objectReferenceValue = rackView.GetComponent<RectTransform>();
-            rvSo.FindProperty("_rackTilePrefab").objectReferenceValue = tilePrefab.GetComponent<TileView>();
-            rvSo.FindProperty("_constants").objectReferenceValue =
+            FindProp(rvSo, "_rackContainer").objectReferenceValue = rackView.GetComponent<RectTransform>();
+            FindProp(rvSo, "_rackTilePrefab").objectReferenceValue = tilePrefab.GetComponent<TileView>();
+            FindProp(rvSo, "_constants").objectReferenceValue =
                 AssetDatabase.LoadAssetAtPath<GameConstants>("Assets/Resources/Config/GameConstants.asset");
             rvSo.ApplyModifiedProperties();
         }

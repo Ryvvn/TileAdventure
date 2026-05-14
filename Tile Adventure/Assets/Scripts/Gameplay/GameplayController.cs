@@ -63,6 +63,7 @@ namespace TileAdventure.Gameplay
         public async void Initialize(int levelNumber, LevelConfig config = null)
         {
             _audio = AudioManager.Instance;
+            _levelManager?.Dispose();
             _levelManager = new LevelManager(_constants);
             LoadSprites();
 
@@ -96,6 +97,8 @@ namespace TileAdventure.Gameplay
             // Button wiring (buttons persist across the scene lifespan)
             _restartButton.onClick.AddListener(Restart);
             _homeButton.onClick.AddListener(GoHome);
+            _restartButton.gameObject.SetActive(false);
+            _homeButton.gameObject.SetActive(false);
 
             // Popups start hidden
             _winPopup.SetActive(false);
@@ -183,12 +186,16 @@ namespace TileAdventure.Gameplay
             saveService.UnlockLevel(_levelManager.State.currentLevel + 1);
 
             _winPopup.SetActive(true);
+            _restartButton.gameObject.SetActive(true);
+            _homeButton.gameObject.SetActive(true);
         }
 
         /// <summary> Lose condition triggered (rack overflow). Show popup. </summary>
         private void OnLost()
         {
             _losePopup.SetActive(true);
+            _restartButton.gameObject.SetActive(true);
+            _homeButton.gameObject.SetActive(true);
         }
 
         /// <summary> Update HUD: level number and triple progress. </summary>
@@ -207,6 +214,8 @@ namespace TileAdventure.Gameplay
         {
             _winPopup.SetActive(false);
             _losePopup.SetActive(false);
+            _restartButton.gameObject.SetActive(false);
+            _homeButton.gameObject.SetActive(false);
             _levelManager.Dispose();
 
             var sceneLoader = new SceneLoader();

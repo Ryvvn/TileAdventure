@@ -3,7 +3,7 @@ title: 'Tile Trip Match — Full Game Implementation'
 type: 'feature'
 created: '2026-05-12'
 baseline_commit: 'NO_VCS'
-status: 'in-review'
+status: 'done'
 ---
 
 <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
@@ -71,28 +71,28 @@ status: 'in-review'
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `ProjectSettings/` — Create Unity 6.0 URP 2D project, configure manifest (UniTask, Addressables), set up folder structure — Foundation for all work
-- [ ] `Assets/Scripts/Config/GameConstants.cs` — ScriptableObject with all magic numbers (rackSize=7, matchCount=3, tileTypes=14, animationDuration, etc.) — Single source of truth
-- [ ] `Assets/Scripts/Config/LevelConfig.cs` — ScriptableObject per level (tile positions, layers, icon distribution, triple target, rack size) — Level data definition
-- [ ] `Assets/Scripts/Core/TileData.cs` — Plain C# model (iconId, gridPosition, layer, isExposed, isInRack) — Tile data without MonoBehaviour
-- [ ] `Assets/Scripts/Core/BoardLogic.cs` — Plain C# class: generate board from LevelConfig, track layers, determine exposure — Board state management
-- [ ] `Assets/Scripts/Core/RackLogic.cs` — Plain C# class: add tile, group by icon, detect match-3, remove matched, check overflow — Rack state and matching
-- [ ] `Assets/Scripts/Core/GameState.cs` — Plain C# model (currentLevel, triplesCleared, targetTriples, isWin, isLose) — Game state tracking
-- [ ] `Assets/Scripts/Core/LevelManager.cs` — Plain C# class: load level config, initialize board, coordinate win/lose — Level lifecycle
-- [ ] `Assets/Scripts/Gameplay/TileView.cs` — MonoBehaviour: render tile sprite on tile-base background, handle tap, dim when blocked, animate movement — Tile visual + interaction
-- [ ] `Assets/Scripts/Gameplay/BoardView.cs` — MonoBehaviour: instantiate TileViews, position on grid with layer offset, update exposure visuals — Board rendering
-- [ ] `Assets/Scripts/Gameplay/RackView.cs` — MonoBehaviour: display rack slots, animate tile insertion, play match-clear effect — Rack rendering
-- [ ] `Assets/Scripts/Gameplay/GameplayController.cs` — MonoBehaviour: wire BoardLogic+RackLogic+GameState, handle input, coordinate win/lose transitions — Gameplay orchestrator
-- [ ] `Assets/Scripts/Services/SaveService.cs` — JSON save/load for level progress, unlocked levels, high scores — Persistent progress
-- [ ] `Assets/Scripts/Services/SceneLoader.cs` — Async scene loading with fade canvas (Loading → Home → Gameplay) — Scene transitions
-- [ ] `Assets/Scripts/Audio/AudioManager.cs` — Persistent singleton, play bg_music loop, tap/match SFX via AudioSource pool — Audio
-- [ ] `Assets/Scripts/UI/HomeScreen.cs` — Play button, level grid (1-10 with lock/unlock state), logo — Home scene UI
-- [ ] `Assets/Scripts/UI/LoadingScreen.cs` — Addressables preload, progress bar, transition to Home — Loading scene
-- [ ] `Assets/Scenes/Loading.unity` — Setup LoadingScreen, Addressables reference, AudioManager persistent object — Loading scene
-- [ ] `Assets/Scenes/Home.unity` — Setup HomeScreen with Canvas Scaler (9:16/16:9), background, logo — Home scene
-- [ ] `Assets/Scenes/Gameplay.unity` — Setup GameplayController, BoardView, RackView, Canvas Scaler — Gameplay scene
-- [ ] `Assets/Scripts/Config/Levels/Level_01.asset` through `Level_10.asset` — 10 ScriptableObject level configs with progressive difficulty — Level content
-- [ ] `DESIGN.md` — Architecture decisions, level data structure, solvability strategy, trade-offs — Documentation deliverable
+- [x] `ProjectSettings/` — Create Unity 6.0 URP 2D project, configure manifest (UniTask, Addressables), set up folder structure — Foundation for all work
+- [x] `Assets/Scripts/Config/GameConstants.cs` — ScriptableObject with all magic numbers (rackSize=7, matchCount=3, tileTypes=14, animationDuration, etc.) — Single source of truth
+- [x] `Assets/Scripts/Config/LevelConfig.cs` — ScriptableObject per level (tile positions, layers, icon distribution, triple target, rack size) — Level data definition
+- [x] `Assets/Scripts/Core/TileData.cs` — Plain C# model (iconId, gridPosition, layer, isExposed, isInRack) — Tile data without MonoBehaviour
+- [x] `Assets/Scripts/Core/BoardLogic.cs` — Plain C# class: generate board from LevelConfig, track layers, determine exposure — Board state management
+- [x] `Assets/Scripts/Core/RackLogic.cs` — Plain C# class: add tile, group by icon, detect match-3, remove matched, check overflow — Rack state and matching
+- [x] `Assets/Scripts/Core/GameState.cs` — Plain C# model (currentLevel, triplesCleared, targetTriples, isWin, isLose) — Game state tracking
+- [x] `Assets/Scripts/Core/LevelManager.cs` — Plain C# class: load level config, initialize board, coordinate win/lose — Level lifecycle
+- [x] `Assets/Scripts/Gameplay/TileView.cs` — MonoBehaviour: render tile sprite on tile-base background, handle tap, dim when blocked, animate movement — Tile visual + interaction
+- [x] `Assets/Scripts/Gameplay/BoardView.cs` — MonoBehaviour: instantiate TileViews, position on grid with layer offset, update exposure visuals — Board rendering
+- [x] `Assets/Scripts/Gameplay/RackView.cs` — MonoBehaviour: display rack slots, animate tile insertion, play match-clear effect — Rack rendering
+- [x] `Assets/Scripts/Gameplay/GameplayController.cs` — MonoBehaviour: wire BoardLogic+RackLogic+GameState, handle input, coordinate win/lose transitions — Gameplay orchestrator
+- [x] `Assets/Scripts/Services/SaveService.cs` — JSON save/load for level progress, unlocked levels, high scores — Persistent progress
+- [x] `Assets/Scripts/Services/SceneLoader.cs` — Async scene loading with fade canvas (Loading → Home → Gameplay) — Scene transitions
+- [x] `Assets/Scripts/Audio/AudioManager.cs` — Persistent singleton, play bg_music loop, tap/match SFX via AudioSource pool — Audio
+- [x] `Assets/Scripts/UI/HomeScreen.cs` — Play button, level grid (1-10 with lock/unlock state), logo — Home scene UI
+- [x] `Assets/Scripts/UI/LoadingScreen.cs` — Addressables preload, progress bar, transition to Home — Loading scene
+- [x] `Assets/Scenes/Loading.unity` — Setup LoadingScreen, Addressables reference, AudioManager persistent object — Loading scene
+- [x] `Assets/Scenes/Home.unity` — Setup HomeScreen with Canvas Scaler (9:16/16:9), background, logo — Home scene
+- [x] `Assets/Scenes/Gameplay.unity` — Setup GameplayController, BoardView, RackView, Canvas Scaler — Gameplay scene
+- [x] `Assets/Scripts/Config/Levels/Level_01.asset` through `Level_10.asset` — 10 ScriptableObject level configs with progressive difficulty — Level content
+- [x] `DESIGN.md` — Architecture decisions, level data structure, solvability strategy, trade-offs — Documentation deliverable
 
 **Acceptance Criteria:**
 - Given no save file, when game launches, then Loading→Home transition shows, level 1 unlocked, levels 2-10 locked
@@ -133,3 +133,89 @@ Canvas Scaler set to `Scale With Screen Size`, reference 1080×1920, match width
 - Rack grouping places same-icon tiles adjacent
 - Match clear animation is visible and tiles are removed
 - Level progress persists across editor play/stop cycles
+
+## Spec Change Log
+
+_No spec-level changes during review. Two patches auto-applied: buttons hidden/shown with popups, Build Settings auto-registration._
+
+## Suggested Review Order
+
+**Entry Point — Gameplay Orchestrator**
+
+- Wire all core logic to views, tap→rack→match flow, win/lose handling
+  [GameplayController.cs:49](../../Tile Adventure/Assets/Scripts/Gameplay/GameplayController.cs#L49)
+
+**Core Logic — Rack insert + sort + match**
+
+- Insert algorithm with grouping/shifting, match-3 detection, overflow prediction
+  [RackLogic.cs:46](../../Tile Adventure/Assets/Scripts/Core/RackLogic.cs#L46)
+
+- Insert-index finder: same-icon grouping, sort-order placement
+  [RackLogic.cs:104](../../Tile Adventure/Assets/Scripts/Core/RackLogic.cs#L104)
+
+- Match run-length scanner with recursive chain-reaction check
+  [RackLogic.cs:233](../../Tile Adventure/Assets/Scripts/Core/RackLogic.cs#L233)
+
+**Core Logic — Board exposure + layer overlap**
+
+- Exposure: tile blocked if any higher-layer tile overlaps it
+  [BoardLogic.cs:143](../../Tile Adventure/Assets/Scripts/Core/BoardLogic.cs#L143)
+
+- Overlap test using actual tile dimensions (fixed from hardcoded bug)
+  [TileData.cs:75](../../Tile Adventure/Assets/Scripts/Core/TileData.cs#L75)
+
+- Grid-to-world position mapping with layer diagonal offset
+  [BoardLogic.cs:125](../../Tile Adventure/Assets/Scripts/Core/BoardLogic.cs#L125)
+
+**Core Logic — State + Level management**
+
+- Game state machine: Playing→Won/Lost, triple counting
+  [GameState.cs:22](../../Tile Adventure/Assets/Scripts/Core/GameState.cs#L22)
+
+- Level manager: wires Board+Rack+State, event relay, dispose
+  [LevelManager.cs:38](../../Tile Adventure/Assets/Scripts/Core/LevelManager.cs#L38)
+
+**Views — Board rendering + animation**
+
+- Sorted layer-first instantiation + bounding-box centering
+  [BoardView.cs:50](../../Tile Adventure/Assets/Scripts/Gameplay/BoardView.cs#L50)
+
+- Smoothstep animation from board to rack slot
+  [BoardView.cs:119](../../Tile Adventure/Assets/Scripts/Gameplay/BoardView.cs#L119)
+
+**Views — Rack rendering + shift/match animation**
+
+- Slot build, tile shift/added icon updates, match-clear scale+fade
+  [RackView.cs:48](../../Tile Adventure/Assets/Scripts/Gameplay/RackView.cs#L48)
+
+**Views — Tile click handling + blocked feedback**
+
+- Tap debounce, blocked-tile shake, exposure visual update
+  [TileView.cs:80](../../Tile Adventure/Assets/Scripts/Gameplay/TileView.cs#L80)
+
+**Config — Constants + Level definitions**
+
+- Single source of truth, all magic numbers centralized
+  [GameConstants.cs:11](../../Tile Adventure/Assets/Scripts/Config/GameConstants.cs#L11)
+
+- 10-level difficulty curve with progressive params
+  [LevelGenerator.cs:49](../../Tile Adventure/Assets/Scripts/Core/LevelGenerator.cs#L49)
+
+**Services + UI**
+
+- JSON save/load with corrupt-file graceful degradation
+  [SaveService.cs:35](../../Tile Adventure/Assets/Scripts/Services/SaveService.cs#L35)
+
+- Async scene loading with activation gate at 0.9
+  [SceneLoader.cs:20](../../Tile Adventure/Assets/Scripts/Services/SceneLoader.cs#L20)
+
+- Preloader with error+retry, 3-phase asset pipeline
+  [LoadingScreen.cs:23](../../Tile Adventure/Assets/Scripts/UI/LoadingScreen.cs#L23)
+
+- Level select grid with lock/unlock state from save
+  [HomeScreen.cs:45](../../Tile Adventure/Assets/Scripts/UI/HomeScreen.cs#L45)
+
+**Editor + Project Setup**
+
+- Scene auto-generator with Build Settings registration
+  [SceneGenerator.cs:15](../../Tile Adventure/Assets/Scripts/Editor/SceneGenerator.cs#L15)

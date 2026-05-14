@@ -28,14 +28,19 @@ namespace TileAdventure.UI
 
         private async void Start()
         {
-            // Reset UI state
-            _errorPanel?.SetActive(false);
-            _retryButton?.onClick.AddListener(() =>
-            {
-                _errorPanel?.SetActive(false);
-                Start();
-            });
+            _retryButton?.onClick.AddListener(OnRetryClicked);
 
+            await LoadAssetsAndTransition();
+        }
+
+        private void OnRetryClicked()
+        {
+            _errorPanel?.SetActive(false);
+            _ = LoadAssetsAndTransition();
+        }
+
+        private async System.Threading.Tasks.Task LoadAssetsAndTransition()
+        {
             UpdateProgress(0f, "Loading assets...");
 
             // --- Phase 1: UI sprites (7 files) ---

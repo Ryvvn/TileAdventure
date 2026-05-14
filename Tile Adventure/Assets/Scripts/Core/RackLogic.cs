@@ -45,19 +45,8 @@ namespace TileAdventure.Core
         /// </summary>
         public int AddTile(TileData tile)
         {
-            // Step 1: Determine where the tile should go in icon-sorted order.
             int insertIndex = FindInsertIndex(tile.iconId);
 
-            // Step 2: If rack is already completely full, trigger overflow and reject.
-            if (IsFull())
-            {
-                OnRackOverflow?.Invoke();
-                return -1;
-            }
-
-            // Step 3: Find the first empty slot (leftmost gap).
-            // The rack should always be compact (no gaps between tiles),
-            // so this is always the slot right after the last occupied slot.
             int emptyIndex = -1;
             for (int i = 0; i < _slotCount; i++)
             {
@@ -70,20 +59,21 @@ namespace TileAdventure.Core
 
             if (emptyIndex < 0) return -1;
 
-            // Step 4: If the empty slot is not where we want to insert,
-            // shift tiles between them to open up space at the target position.
             if (insertIndex != emptyIndex)
             {
                 ShiftSlots(emptyIndex, insertIndex);
             }
 
-            // Step 5: Place the tile and notify listeners.
             _slots[insertIndex].tile = tile;
             tile.isMoving = true;
             OnTileAdded?.Invoke(insertIndex, tile);
 
-            // Step 6: Check if this insertion created a match-3 run.
             CheckMatch(insertIndex);
+
+            if (IsFull())
+            {
+                OnRackOverflow?.Invoke();
+            }
 
             return insertIndex;
         }
