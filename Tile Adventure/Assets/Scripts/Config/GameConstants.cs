@@ -91,6 +91,19 @@ namespace TileAdventure.Config
         [Tooltip("Hue step per icon ID for match particle coloring (maps 14 icons around the color wheel).")]
         public float matchParticleHueStep = 0.07f;
 
+        [Header("Combo")]
+        [Tooltip("Seconds before combo timer expires after last match.")]
+        public float comboWindowDuration = 4f;
+
+        [Tooltip("Maximum combo multiplier (×1 through ×N).")]
+        public int maxComboMultiplier = 5;
+
+        [Tooltip("Lifetime of combo floating text before it fades and destroys.")]
+        public float comboTextLifetime = 1.5f;
+
+        [Tooltip("Screen shake intensity multiplier per combo level.")]
+        public float screenShakeIntensity = 0.015f;
+
         [Header("Input")]
         [Tooltip("Minimum seconds between valid taps on the same tile (debounce).")]
         public float doubleTapThreshold = 0.3f;

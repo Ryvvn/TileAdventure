@@ -39,7 +39,9 @@ namespace TileAdventure.Core
         {
             Board = new BoardLogic(_constants);
             Rack = new RackLogic(_constants, config.rackSlotCount);
-            State = new GameState(config.levelNumber, config.targetTriples);
+            State = new GameState(config.levelNumber, config.targetTriples,
+                _constants.comboWindowDuration, _constants.maxComboMultiplier);
+            State.Combo.Reset();
 
             if (config.tiles != null && config.tiles.Count > 0)
             {
@@ -63,7 +65,9 @@ namespace TileAdventure.Core
         {
             Board = new BoardLogic(_constants);
             Rack = new RackLogic(_constants, rackSlots);
-            State = new GameState(levelNumber, targetTriples);
+            State = new GameState(levelNumber, targetTriples,
+                _constants.comboWindowDuration, _constants.maxComboMultiplier);
+            State.Combo.Reset();
 
             Board.GenerateBoard(targetTriples, layerCount, activeIcons);
 
