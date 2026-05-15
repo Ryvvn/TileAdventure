@@ -17,77 +17,77 @@ MonoBehaviour:
   layerCount: 5
   activeIconCount: 12
   rackSlotCount: 5
-  silverTimeThreshold: 70
+  silverTimeThreshold: 75
   tiles:
   - iconId: 11
     layerIndex: 3
-    gridPosition: {x: 3, y: 2}
+    gridPosition: {x: 2, y: 4}
   - iconId: 11
     layerIndex: 3
-    gridPosition: {x: 1, y: 1}
+    gridPosition: {x: 0, y: 2}
   - iconId: 11
     layerIndex: 2
-    gridPosition: {x: 0, y: 3}
+    gridPosition: {x: 0, y: 5}
   - iconId: 7
     layerIndex: 1
-    gridPosition: {x: 2, y: 2}
+    gridPosition: {x: 1, y: 4}
   - iconId: 7
     layerIndex: 4
-    gridPosition: {x: 1, y: 0}
+    gridPosition: {x: 0, y: 0}
   - iconId: 7
     layerIndex: 0
-    gridPosition: {x: 3, y: 0}
+    gridPosition: {x: 2, y: 1}
   - iconId: 1
     layerIndex: 1
     gridPosition: {x: 2, y: 3}
   - iconId: 1
+    layerIndex: 3
+    gridPosition: {x: 2, y: 1}
+  - iconId: 1
+    layerIndex: 0
+    gridPosition: {x: 0, y: 1}
+  - iconId: 1
+    layerIndex: 0
+    gridPosition: {x: 0, y: 3}
+  - iconId: 1
+    layerIndex: 0
+    gridPosition: {x: 1, y: 5}
+  - iconId: 1
     layerIndex: 2
-    gridPosition: {x: 3, y: 1}
-  - iconId: 1
+    gridPosition: {x: 0, y: 3}
+  - iconId: 8
+    layerIndex: 3
+    gridPosition: {x: 1, y: 1}
+  - iconId: 8
+    layerIndex: 4
+    gridPosition: {x: 1, y: 1}
+  - iconId: 8
+    layerIndex: 3
+    gridPosition: {x: 0, y: 4}
+  - iconId: 9
+    layerIndex: 2
+    gridPosition: {x: 0, y: 0}
+  - iconId: 9
     layerIndex: 0
+    gridPosition: {x: 2, y: 5}
+  - iconId: 9
+    layerIndex: 4
+    gridPosition: {x: 0, y: 3}
+  - iconId: 5
+    layerIndex: 1
     gridPosition: {x: 1, y: 0}
-  - iconId: 1
-    layerIndex: 0
-    gridPosition: {x: 0, y: 2}
-  - iconId: 1
+  - iconId: 5
+    layerIndex: 1
+    gridPosition: {x: 2, y: 0}
+  - iconId: 5
+    layerIndex: 2
+    gridPosition: {x: 2, y: 4}
+  - iconId: 4
+    layerIndex: 3
+    gridPosition: {x: 1, y: 4}
+  - iconId: 4
     layerIndex: 0
     gridPosition: {x: 1, y: 3}
-  - iconId: 1
+  - iconId: 4
     layerIndex: 2
-    gridPosition: {x: 0, y: 2}
-  - iconId: 8
-    layerIndex: 3
-    gridPosition: {x: 0, y: 2}
-  - iconId: 8
-    layerIndex: 2
-    gridPosition: {x: 2, y: 0}
-  - iconId: 8
-    layerIndex: 3
-    gridPosition: {x: 0, y: 0}
-  - iconId: 0
-    layerIndex: 3
-    gridPosition: {x: 3, y: 1}
-  - iconId: 0
-    layerIndex: 2
-    gridPosition: {x: 3, y: 3}
-  - iconId: 0
-    layerIndex: 4
-    gridPosition: {x: 0, y: 1}
-  - iconId: 0
-    layerIndex: 3
-    gridPosition: {x: 1, y: 0}
-  - iconId: 0
-    layerIndex: 1
-    gridPosition: {x: 3, y: 3}
-  - iconId: 0
-    layerIndex: 3
     gridPosition: {x: 2, y: 2}
-  - iconId: 2
-    layerIndex: 3
-    gridPosition: {x: 0, y: 1}
-  - iconId: 2
-    layerIndex: 0
-    gridPosition: {x: 0, y: 0}
-  - iconId: 2
-    layerIndex: 1
-    gridPosition: {x: 3, y: 2}

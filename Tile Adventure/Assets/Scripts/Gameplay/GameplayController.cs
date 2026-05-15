@@ -72,6 +72,13 @@ namespace TileAdventure.Gameplay
 
             var levelNumber = PlayerPrefs.GetInt("SelectedLevel", 1);
             var config = Resources.Load<LevelConfig>($"Config/Levels/Level_{levelNumber:D2}");
+
+            if (config != null && !BoardLogic.ValidateLayout(config))
+            {
+                Debug.LogWarning($"Level {levelNumber:D2} config has same-layer overlaps, using procedural fallback.");
+                config = null;
+            }
+
             Initialize(levelNumber, config);
         }
 
@@ -545,6 +552,8 @@ namespace TileAdventure.Gameplay
 
             if (newTiles.Count > 0)
                 await _boardView.AnimateRefillTiles(newTiles);
+
+            _boardView.RefreshAllTiles();
         }
 
         /// <summary> Update HUD: level number and triple progress. </summary>

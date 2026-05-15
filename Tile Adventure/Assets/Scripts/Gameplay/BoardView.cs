@@ -20,12 +20,17 @@ namespace TileAdventure.Gameplay
         [SerializeField] private RectTransform _boardContainer;
         [SerializeField] private GameConstants _constants;
 
+        [Header("Debug")]
+        [SerializeField] private bool _showDebugGrid;
+
         /// <summary> tileId → TileView mapping for O(1) lookup during removal. </summary>
         private Dictionary<int, TileView> _tileViews;
 
         private BoardLogic _board;
         private Sprite[] _iconSprites;
         private Sprite _backgroundSprite;
+        private List<GameObject> _debugObjects = new List<GameObject>();
+        private Vector2 _boardOffset;
 
         /// <summary> Fired when any tile is tapped (relayed to GameplayController). </summary>
         public event Action<TileView> OnTileTapped;
@@ -72,6 +77,7 @@ namespace TileAdventure.Gameplay
                 maxY = Mathf.Max(maxY, wp.y + halfSize.y);
             }
             var offset = new Vector2(-(minX + maxX) / 2f, -(minY + maxY) / 2f);
+            _boardOffset = offset;
 
             // Group tiles by layer for cascade animation
             var tilesByLayer = new Dictionary<int, List<(TileData data, TileView view)>>();
@@ -122,6 +128,9 @@ namespace TileAdventure.Gameplay
                 await System.Threading.Tasks.Task.Delay(
                     (int)(_constants.boardCascadeDelayPerLayer * 1000f));
             }
+
+            SortTilesByLayer();
+            DrawDebugGrid();
         }
 
         private async void AnimateCascadeIn(TileView tileView)
@@ -307,19 +316,6 @@ namespace TileAdventure.Gameplay
         {
             if (newTiles == null || newTiles.Count == 0) return;
 
-            var halfSize = _constants.tileSize * 0.5f;
-            float minX = float.MaxValue, minY = float.MaxValue;
-            float maxX = float.MinValue, maxY = float.MinValue;
-            foreach (var tile in newTiles)
-            {
-                var wp = tile.worldPosition;
-                minX = Mathf.Min(minX, wp.x - halfSize.x);
-                minY = Mathf.Min(minY, wp.y - halfSize.y);
-                maxX = Mathf.Max(maxX, wp.x + halfSize.x);
-                maxY = Mathf.Max(maxY, wp.y + halfSize.y);
-            }
-            var offset = new Vector2(-(minX + maxX) / 2f, -(minY + maxY) / 2f);
-
             var tilesByLayer = new Dictionary<int, List<(TileData data, TileView view)>>();
 
             foreach (var tile in newTiles)
@@ -328,7 +324,7 @@ namespace TileAdventure.Gameplay
                 tileView.name = $"Tile_{tile.tileId}";
                 var rt = tileView.GetComponent<RectTransform>();
 
-                rt.anchoredPosition = new Vector2(tile.worldPosition.x + offset.x, tile.worldPosition.y + offset.y);
+                rt.anchoredPosition = new Vector2(tile.worldPosition.x + _boardOffset.x, tile.worldPosition.y + _boardOffset.y);
                 rt.sizeDelta = _constants.tileSize;
 
                 var sprite = tile.iconId < _iconSprites.Length ? _iconSprites[tile.iconId] : null;
@@ -365,6 +361,9 @@ namespace TileAdventure.Gameplay
                 await System.Threading.Tasks.Task.Delay(
                     (int)(_constants.boardCascadeDelayPerLayer * 1000f));
             }
+
+            SortTilesByLayer();
+            DrawDebugGrid();
         }
 
         /// <summary> BoardLogic event handler — animates and destroys a tile view when its data is removed. </summary>
@@ -394,6 +393,68 @@ namespace TileAdventure.Gameplay
                     Destroy(kvp.Value.gameObject);
             }
             _tileViews.Clear();
+        }
+
+        private void SortTilesByLayer()
+        {
+            var tileList = new List<TileView>();
+            foreach (var kvp in _tileViews)
+            {
+                if (kvp.Value != null && !kvp.Value.Data.isRemoved)
+                    tileList.Add(kvp.Value);
+            }
+
+            tileList.Sort((a, b) => a.Data.layerIndex.CompareTo(b.Data.layerIndex));
+
+            foreach (var tileView in tileList)
+                tileView.transform.SetAsLastSibling();
+        }
+
+        private void DrawDebugGrid()
+        {
+            ClearDebugGrid();
+
+            if (!_showDebugGrid || _board == null) return;
+
+            var layerColors = new Color[]
+            {
+                new Color(0f, 0.5f, 1f, 0.3f),
+                new Color(0f, 1f, 0.3f, 0.3f),
+                new Color(1f, 0.9f, 0f, 0.3f),
+                new Color(1f, 0.2f, 0f, 0.3f),
+                new Color(1f, 0f, 1f, 0.3f),
+                new Color(0f, 1f, 1f, 0.3f),
+            };
+
+            foreach (var tile in _board.AllTiles)
+            {
+                if (tile.isRemoved) continue;
+
+                var color = layerColors[tile.layerIndex % layerColors.Length];
+
+                var go = new GameObject($"Debug_{tile.tileId}", typeof(RectTransform), typeof(Image));
+                go.transform.SetParent(_boardContainer, false);
+                go.transform.SetAsFirstSibling();
+
+                var rt = go.GetComponent<RectTransform>();
+                rt.anchoredPosition = new Vector2(tile.worldPosition.x + _boardOffset.x, tile.worldPosition.y + _boardOffset.y);
+                rt.sizeDelta = _constants.tileSize;
+
+                var img = go.GetComponent<Image>();
+                img.color = color;
+                img.raycastTarget = false;
+
+                _debugObjects.Add(go);
+            }
+        }
+
+        private void ClearDebugGrid()
+        {
+            foreach (var go in _debugObjects)
+            {
+                if (go != null) Destroy(go);
+            }
+            _debugObjects.Clear();
         }
 
         private void OnDestroy()

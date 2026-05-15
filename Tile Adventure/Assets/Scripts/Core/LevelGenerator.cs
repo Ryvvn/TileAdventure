@@ -23,15 +23,28 @@ namespace TileAdventure.Core
         public static LevelConfig GenerateLevelConfig(int levelNumber)
         {
             var def = GetLevelDefinition(levelNumber);
-            var config = ScriptableObject.CreateInstance<LevelConfig>();
 
+            List<LevelConfig.TilePlacement> tiles = null;
+            int seed = levelNumber;
+            int maxAttempts = 50;
+
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                tiles = GenerateSolvableLayout(def, seed);
+                if (ValidateTiles(tiles))
+                    break;
+
+                seed++;
+            }
+
+            var config = ScriptableObject.CreateInstance<LevelConfig>();
             config.levelNumber = levelNumber;
             config.targetTriples = def.targetTriples;
             config.layerCount = def.layerCount;
             config.activeIconCount = def.activeIconCount;
             config.rackSlotCount = def.rackSlotCount;
             config.silverTimeThreshold = def.silverTimeThreshold;
-            config.tiles = GenerateSolvableLayout(def, levelNumber);
+            config.tiles = tiles;
 
             return config;
         }
@@ -90,29 +103,38 @@ namespace TileAdventure.Core
                 usedCells[i] = new HashSet<Vector2Int>();
 
                 // Grid size scales with tile count to avoid overcrowding
-            var gridSize = Mathf.Max(6, Mathf.CeilToInt(Mathf.Sqrt(totalTiles / def.layerCount + 1) * 1.5f));
+            var tilesPerLayer = Mathf.CeilToInt((float)totalTiles / def.layerCount);
+            var baseSize = Mathf.Max(3, Mathf.CeilToInt(Mathf.Sqrt(tilesPerLayer)));
+            var gridWidth = baseSize;
+            var gridHeight = baseSize * 2;
             var tripleCount = totalTiles / 3;
+
+            var placedWorldRects = new List<(int layer, Rect rect)>();
 
             for (int t = 0; t < tripleCount; t++)
             {
-                // Pick a random icon for this triple (all 3 tiles get the same icon)
                 int iconId = rng.Next(def.activeIconCount);
 
                 for (int i = 0; i < 3; i++)
                 {
                     int layer = rng.Next(def.layerCount);
                     Vector2Int pos;
+                    Vector2 worldPos;
+                    Rect myRect;
                     int attempts = 0;
 
-                    // Keep trying random positions until we find an unoccupied cell
                     do
                     {
-                        pos = new Vector2Int(rng.Next(gridSize), rng.Next(gridSize));
+                        pos = new Vector2Int(rng.Next(gridWidth), rng.Next(gridHeight));
+                        worldPos = LevelGridToWorld(pos, layer);
+                        myRect = new Rect(worldPos.x - 40f, worldPos.y - 40f, 80f, 80f);
                         attempts++;
                     }
-                    while (usedCells[layer].Contains(pos) && attempts < 100);
+                    while ((usedCells[layer].Contains(pos) || LevelSameLayerOverlap(layer, myRect, placedWorldRects))
+                        && attempts < 200);
 
                     usedCells[layer].Add(pos);
+                    placedWorldRects.Add((layer, myRect));
 
                     placements.Add(new LevelConfig.TilePlacement
                     {
@@ -124,6 +146,50 @@ namespace TileAdventure.Core
             }
 
             return placements;
+        }
+
+        private static Vector2 LevelGridToWorld(Vector2Int gridPos, int layer)
+        {
+            var staggerX = (gridPos.y % 2) * 40f;
+            var x = gridPos.x * 80f + staggerX + layer * 12f;
+            var y = gridPos.y * 40f + layer * 12f;
+            return new Vector2(x, y);
+        }
+
+        private static bool LevelSameLayerOverlap(int layer, Rect myRect, List<(int layer, Rect rect)> placed)
+        {
+            foreach (var (pl, pr) in placed)
+            {
+                if (pl == layer && myRect.Overlaps(pr))
+                    return true;
+            }
+            return false;
+        }
+
+        private static bool ValidateTiles(List<LevelConfig.TilePlacement> tiles)
+        {
+            if (tiles == null) return false;
+
+            var rectsByLayer = new Dictionary<int, List<Rect>>();
+
+            foreach (var placement in tiles)
+            {
+                var worldPos = LevelGridToWorld(placement.gridPosition, placement.layerIndex);
+                var rect = new Rect(worldPos.x - 40f, worldPos.y - 40f, 80f, 80f);
+
+                if (!rectsByLayer.ContainsKey(placement.layerIndex))
+                    rectsByLayer[placement.layerIndex] = new List<Rect>();
+
+                foreach (var existing in rectsByLayer[placement.layerIndex])
+                {
+                    if (rect.Overlaps(existing))
+                        return false;
+                }
+
+                rectsByLayer[placement.layerIndex].Add(rect);
+            }
+
+            return true;
         }
 
         /// <summary>

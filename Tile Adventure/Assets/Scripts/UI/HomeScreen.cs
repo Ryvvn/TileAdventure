@@ -186,6 +186,7 @@ namespace TileAdventure.UI
                 return;
 
             // Pass selected level to GameplayController via PlayerPrefs
+            PlayerPrefs.SetInt("SelectedMode", 0);
             PlayerPrefs.SetInt("SelectedLevel", levelNumber);
             PlayerPrefs.Save();
 
