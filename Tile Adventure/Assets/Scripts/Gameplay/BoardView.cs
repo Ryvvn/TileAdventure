@@ -299,6 +299,74 @@ namespace TileAdventure.Gameplay
             }
         }
 
+        /// <summary>
+        /// Create TileViews for new refill tiles and cascade them in.
+        /// Called by GameplayController when EndlessLevelManager generates refill tiles.
+        /// </summary>
+        public async System.Threading.Tasks.Task AnimateRefillTiles(List<TileData> newTiles)
+        {
+            if (newTiles == null || newTiles.Count == 0) return;
+
+            var halfSize = _constants.tileSize * 0.5f;
+            float minX = float.MaxValue, minY = float.MaxValue;
+            float maxX = float.MinValue, maxY = float.MinValue;
+            foreach (var tile in newTiles)
+            {
+                var wp = tile.worldPosition;
+                minX = Mathf.Min(minX, wp.x - halfSize.x);
+                minY = Mathf.Min(minY, wp.y - halfSize.y);
+                maxX = Mathf.Max(maxX, wp.x + halfSize.x);
+                maxY = Mathf.Max(maxY, wp.y + halfSize.y);
+            }
+            var offset = new Vector2(-(minX + maxX) / 2f, -(minY + maxY) / 2f);
+
+            var tilesByLayer = new Dictionary<int, List<(TileData data, TileView view)>>();
+
+            foreach (var tile in newTiles)
+            {
+                var tileView = Instantiate(_tilePrefab, _boardContainer);
+                tileView.name = $"Tile_{tile.tileId}";
+                var rt = tileView.GetComponent<RectTransform>();
+
+                rt.anchoredPosition = new Vector2(tile.worldPosition.x + offset.x, tile.worldPosition.y + offset.y);
+                rt.sizeDelta = _constants.tileSize;
+
+                var sprite = tile.iconId < _iconSprites.Length ? _iconSprites[tile.iconId] : null;
+                tileView.Initialize(tile, sprite, _backgroundSprite,
+                    _constants.blockedTileTint, _constants.exposedTileColor);
+                tileView.OnTileTapped += HandleTileTapped;
+
+                var layerScale = 1f - tile.layerIndex * _constants.layerScaleFalloff;
+                tileView.SetBaseScale(Vector3.one * layerScale);
+                tileView.SetHoverScale(_constants.hoverGlowScale);
+
+                var cg = tileView.gameObject.AddComponent<CanvasGroup>();
+                cg.alpha = 0f;
+                tileView.transform.localScale = Vector3.zero;
+
+                if (!tilesByLayer.ContainsKey(tile.layerIndex))
+                    tilesByLayer[tile.layerIndex] = new List<(TileData, TileView)>();
+                tilesByLayer[tile.layerIndex].Add((tile, tileView));
+
+                _tileViews[tile.tileId] = tileView;
+            }
+
+            var maxLayer = _constants.maxLayers;
+            for (int layer = 0; layer <= maxLayer; layer++)
+            {
+                if (!tilesByLayer.TryGetValue(layer, out var layerTiles))
+                    continue;
+
+                foreach (var (_, view) in layerTiles)
+                {
+                    AnimateCascadeIn(view);
+                }
+
+                await System.Threading.Tasks.Task.Delay(
+                    (int)(_constants.boardCascadeDelayPerLayer * 1000f));
+            }
+        }
+
         /// <summary> BoardLogic event handler — animates and destroys a tile view when its data is removed. </summary>
         private void OnTileRemoved(TileData tile)
         {
@@ -306,6 +374,15 @@ namespace TileAdventure.Gameplay
             {
                 AnimateTileRemoval(view);
             }
+        }
+
+        /// <summary> Returns the highest tile ID currently rendered (for refill tracking). </summary>
+        public int GetMaxTileId()
+        {
+            var max = 0;
+            foreach (var key in _tileViews.Keys)
+                if (key > max) max = key;
+            return max;
         }
 
         /// <summary> Destroy all instantiated tile GameObjects and clear the lookup. </summary>

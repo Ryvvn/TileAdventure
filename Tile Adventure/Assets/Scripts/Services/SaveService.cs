@@ -17,6 +17,9 @@ namespace TileAdventure.Services
         /// <summary> Per-level best scores (optional, not currently displayed). </summary>
         public List<LevelScore> levelScores = new List<LevelScore>();
 
+        /// <summary> Best endless mode score (most triples cleared in one run). </summary>
+        public int bestEndlessScore;
+
         [System.Serializable]
         public class LevelScore
         {
@@ -137,6 +140,26 @@ namespace TileAdventure.Services
             }
 
             Save();
+        }
+
+        /// <summary>
+        /// Record an endless mode run score. Only saves if it's a new personal best.
+        /// </summary>
+        public void RecordEndlessScore(int triples)
+        {
+            if (_cachedData == null) Load();
+            if (triples > _cachedData.bestEndlessScore)
+            {
+                _cachedData.bestEndlessScore = triples;
+                Save();
+            }
+        }
+
+        /// <summary> Get the best endless mode score (0 = no run yet). </summary>
+        public int GetBestEndlessScore()
+        {
+            if (_cachedData == null) Load();
+            return _cachedData?.bestEndlessScore ?? 0;
         }
     }
 }

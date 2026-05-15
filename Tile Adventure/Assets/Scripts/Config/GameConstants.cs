@@ -120,6 +120,31 @@ namespace TileAdventure.Config
         public int defaultLayerCount = 2;
         public int defaultActiveIcons = 6;
 
+        [Header("Endless Mode")]
+        [Tooltip("Board tile count threshold that triggers a refill.")]
+        public int endlessRefillThreshold = 6;
+
+        [Tooltip("Number of triples between difficulty tier increases.")]
+        public int endlessTriplesPerTier = 3;
+
+        [Tooltip("Minimum rack slots at highest difficulty (floor).")]
+        public int endlessMinRackSlots = 4;
+
+        [Tooltip("Maximum active icons at highest difficulty (cap).")]
+        public int endlessMaxIcons = 14;
+
+        [Tooltip("Maximum board layers at highest difficulty (cap).")]
+        public int endlessMaxLayers = 6;
+
+        [Tooltip("Starting active icons for endless mode tier 1.")]
+        public int endlessStartIcons = 5;
+
+        [Tooltip("Starting board layers for endless mode tier 1.")]
+        public int endlessStartLayers = 2;
+
+        [Tooltip("Starting rack slot count for endless mode tier 1.")]
+        public int endlessStartRackSlots = 7;
+
         [Header("Scene Names")]
         public string loadingSceneName = "Loading";
         public string homeSceneName = "Home";

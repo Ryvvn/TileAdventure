@@ -35,6 +35,7 @@ namespace TileAdventure.UI
             _levelButtons = new List<Button>();
 
             BuildLevelGrid();
+            BuildEndlessButton();
             _playButton.onClick.AddListener(OnPlayClicked);
         }
 
@@ -115,6 +116,65 @@ namespace TileAdventure.UI
         private async void OnPlayClicked()
         {
             await OnLevelSelected(1);
+        }
+
+        /// <summary> Build the Endless Mode button below the level grid with best score display. </summary>
+        private void BuildEndlessButton()
+        {
+            var bgGo = new GameObject("EndlessButtonBg", typeof(RectTransform), typeof(Image));
+            bgGo.transform.SetParent(_levelGridContainer, false);
+            var bgRt = bgGo.GetComponent<RectTransform>();
+            bgRt.anchorMin = new Vector2(0.5f, 0f);
+            bgRt.anchorMax = new Vector2(0.5f, 0f);
+            bgRt.anchoredPosition = new Vector2(0f, 55f);
+            bgRt.sizeDelta = new Vector2(160f, 50f);
+            var bgImg = bgGo.GetComponent<Image>();
+            var bgSprite = Resources.Load<Sprite>("Images/UI/btn_green");
+            if (bgSprite != null) bgImg.sprite = bgSprite;
+
+            var button = bgGo.AddComponent<Button>();
+            button.onClick.AddListener(async () => await OnEndlessClicked());
+
+            var labelGo = new GameObject("Label", typeof(Text));
+            labelGo.transform.SetParent(bgGo.transform, false);
+            var labelText = labelGo.GetComponent<Text>();
+            labelText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            labelText.fontSize = 22;
+            labelText.alignment = TextAnchor.MiddleCenter;
+            labelText.text = "Endless";
+            labelText.color = Color.white;
+            labelText.fontStyle = FontStyle.Bold;
+            labelText.raycastTarget = false;
+            var lrt = labelGo.GetComponent<RectTransform>();
+            lrt.anchorMin = new Vector2(0.5f, 0.5f);
+            lrt.anchorMax = new Vector2(0.5f, 0.5f);
+            lrt.anchoredPosition = Vector2.zero;
+            lrt.sizeDelta = new Vector2(160f, 50f);
+
+            var best = _saveService.GetBestEndlessScore();
+            var scoreGo = new GameObject("BestScore", typeof(Text));
+            scoreGo.transform.SetParent(_levelGridContainer, false);
+            var scoreText = scoreGo.GetComponent<Text>();
+            scoreText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            scoreText.fontSize = 16;
+            scoreText.alignment = TextAnchor.MiddleCenter;
+            scoreText.text = best > 0 ? $"Best: {best}" : "No score yet";
+            scoreText.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+            scoreText.raycastTarget = false;
+            var srt = scoreGo.GetComponent<RectTransform>();
+            srt.anchorMin = new Vector2(0.5f, 0f);
+            srt.anchorMax = new Vector2(0.5f, 0f);
+            srt.anchoredPosition = new Vector2(0f, 20f);
+            srt.sizeDelta = new Vector2(160f, 30f);
+        }
+
+        private async System.Threading.Tasks.Task OnEndlessClicked()
+        {
+            PlayerPrefs.SetInt("SelectedMode", 1);
+            PlayerPrefs.Save();
+
+            var sceneLoader = new SceneLoader();
+            await sceneLoader.LoadSceneAsync(_gameplaySceneName);
         }
 
         /// <summary>

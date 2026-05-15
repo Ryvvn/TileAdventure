@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using TileAdventure.Config;
 using TileAdventure.Core;
 using TileAdventure.Services;
@@ -50,12 +51,25 @@ namespace TileAdventure.Gameplay
         private SaveService _saveService;
         private int _starRevealToken;
 
+        private bool _isEndlessMode;
+        private EndlessLevelManager _endlessManager;
+        private int _gameOverToken;
+
         /// <summary>
         /// Entry point. Reads the level selected on the Home screen,
         /// loads its config, and kicks off Initialize().
         /// </summary>
         private void Start()
         {
+            var mode = PlayerPrefs.GetInt("SelectedMode", 0);
+            _isEndlessMode = mode == 1;
+
+            if (_isEndlessMode)
+            {
+                InitializeEndless();
+                return;
+            }
+
             var levelNumber = PlayerPrefs.GetInt("SelectedLevel", 1);
             var config = Resources.Load<LevelConfig>($"Config/Levels/Level_{levelNumber:D2}");
             Initialize(levelNumber, config);
@@ -126,6 +140,52 @@ namespace TileAdventure.Gameplay
         }
 
         /// <summary>
+        /// Initialize endless mode. Creates EndlessLevelManager with tier-1 params,
+        /// wires events, builds the board and rack views, and configures mode-specific UI.
+        /// </summary>
+        public async void InitializeEndless()
+        {
+            _audio = AudioManager.Instance;
+            _camera = Camera.main;
+            _cameraRestPosition = _camera != null ? _camera.transform.position : Vector3.zero;
+            _saveService = new SaveService();
+            _gameOverToken = 0;
+
+            _endlessManager?.Dispose();
+            _endlessManager = new EndlessLevelManager(_constants);
+            _endlessManager.Initialize();
+
+            LoadSprites();
+
+            _endlessManager.OnLevelLost += OnEndlessLost;
+            _endlessManager.OnRefillGenerated += HandleRefill;
+            _endlessManager.Rack.OnMatchCleared += OnMatchCleared;
+            _endlessManager.Rack.OnRackOverflow += OnRackOverflow;
+
+            _endlessManager.State.Combo.OnComboIncreased += OnComboIncreased;
+            _endlessManager.State.Combo.OnComboBroken += OnComboBroken;
+
+            _boardView.Initialize(_endlessManager.Board, _iconSprites, _tileBackground);
+            _rackView.Initialize(_endlessManager.Rack, _iconSprites, _tileBackground);
+
+            _boardView.OnTileTapped += OnTileTapped;
+            await _boardView.BuildBoard();
+
+            UpdateUI();
+
+            _restartButton.onClick.AddListener(Restart);
+            _homeButton.onClick.AddListener(GoHome);
+            _restartButton.gameObject.SetActive(false);
+            _homeButton.gameObject.SetActive(false);
+            _nextLevelButton.gameObject.SetActive(false);
+
+            _winPopup.SetActive(false);
+            _losePopup.SetActive(false);
+
+            _audio?.PlayMusic();
+        }
+
+        /// <summary>
         /// Load all tile icon sprites and the tile-base background from Resources.
         /// Sprites are 1-indexed (1.png through 14.png) → array index 0-13.
         /// Returns null entries if assets are missing — tiles render blank.
@@ -153,8 +213,23 @@ namespace TileAdventure.Gameplay
         /// </summary>
         private async void OnTileTapped(TileView tileView)
         {
-            if (_levelManager.State.phase != GamePhase.Playing)
-                return;
+            RackLogic rack;
+            BoardLogic board;
+
+            if (_isEndlessMode)
+            {
+                if (_endlessManager.State.phase != GamePhase.Playing)
+                    return;
+                rack = _endlessManager.Rack;
+                board = _endlessManager.Board;
+            }
+            else
+            {
+                if (_levelManager.State.phase != GamePhase.Playing)
+                    return;
+                rack = _levelManager.Rack;
+                board = _levelManager.Board;
+            }
 
             var tile = tileView.Data;
             if (tile.isRemoved || tile.isMoving)
@@ -162,24 +237,27 @@ namespace TileAdventure.Gameplay
 
             tile.isMoving = true;
 
-            if (_levelManager.Rack.WouldOverflowWithNext())
+            if (rack.WouldOverflowWithNext())
             {
-                _levelManager.State.MarkLost();
+                if (_isEndlessMode)
+                    _endlessManager.State.MarkLost();
+                else
+                    _levelManager.State.MarkLost();
                 return;
             }
 
             _audio?.PlayTap();
 
-            int insertIndex = _levelManager.Rack.GetInsertIndex(tile.iconId);
-            int occupiedCount = _levelManager.Rack.GetOccupiedCount();
+            int insertIndex = rack.GetInsertIndex(tile.iconId);
+            int occupiedCount = rack.GetOccupiedCount();
 
             await _rackView.AnimateShiftForInsert(insertIndex, occupiedCount);
 
             var rackTarget = _rackView.GetSlotWorldPosition(insertIndex);
             await _boardView.AnimateMoveToRack(tileView, rackTarget, () =>
             {
-                _levelManager.Rack.AddTile(tile);
-                _levelManager.Board.RemoveTile(tile);
+                rack.AddTile(tile);
+                board.RemoveTile(tile);
             });
 
             UpdateUI();
@@ -193,16 +271,37 @@ namespace TileAdventure.Gameplay
         /// </summary>
         private void OnMatchCleared(int first, int last, int iconId)
         {
-            if (_levelManager.State.phase != GamePhase.Playing)
-                return;
+            ComboSystem combo;
 
-            _levelManager.State.Combo.RegisterMatch();
+            if (_isEndlessMode)
+            {
+                if (_endlessManager.State.phase != GamePhase.Playing)
+                    return;
+                combo = _endlessManager.State.Combo;
+            }
+            else
+            {
+                if (_levelManager.State.phase != GamePhase.Playing)
+                    return;
+                combo = _levelManager.State.Combo;
+            }
 
+            combo.RegisterMatch();
             _audio?.PlayMatch();
-            _levelManager.State.RecordTripleCleared();
 
-            _boardView.SpawnMatchParticles(iconId, _levelManager.State.Combo.CurrentCombo);
+            if (_isEndlessMode)
+                _endlessManager.State.RecordTripleCleared();
+            else
+                _levelManager.State.RecordTripleCleared();
+
+            _boardView.SpawnMatchParticles(iconId, combo.CurrentCombo);
             _boardView.RefreshAllTiles();
+
+            if (_isEndlessMode)
+            {
+                _endlessManager.CheckRefill();
+            }
+
             UpdateUI();
         }
 
@@ -351,17 +450,116 @@ namespace TileAdventure.Gameplay
             return go.transform;
         }
 
-        /// <summary> Lose condition triggered (rack overflow). Show popup. </summary>
+        /// <summary> Lose condition triggered (rack overflow). </summary>
         private void OnLost()
         {
+            if (_isEndlessMode) return; // handled by OnEndlessLost via EndlessLevelManager.OnLevelLost
+
             _losePopup.SetActive(true);
             _restartButton.gameObject.SetActive(true);
             _homeButton.gameObject.SetActive(true);
         }
 
+        /// <summary> Endless mode game over. Shows final score and records best. </summary>
+        private async void OnEndlessLost()
+        {
+            var score = _endlessManager.GetCurrentScore();
+            var previousBest = _saveService.GetBestEndlessScore();
+            _saveService.RecordEndlessScore(score);
+
+            _losePopup.SetActive(true);
+
+            _gameOverToken++;
+            var token = _gameOverToken;
+            await ShowGameOverPopup(score, previousBest, token);
+
+            _restartButton.gameObject.SetActive(true);
+            _homeButton.gameObject.SetActive(true);
+        }
+
+        private async System.Threading.Tasks.Task ShowGameOverPopup(int score, int previousBest, int token)
+        {
+            var container = new GameObject("GameOverContainer", typeof(RectTransform));
+            var rt = container.GetComponent<RectTransform>();
+            rt.SetParent(_losePopup.transform, false);
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, 40f);
+            rt.sizeDelta = new Vector2(300f, 100f);
+
+            var scoreGo = new GameObject("ScoreText", typeof(Text));
+            scoreGo.transform.SetParent(container.transform, false);
+            var scoreText = scoreGo.GetComponent<Text>();
+            scoreText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            scoreText.fontSize = 42;
+            scoreText.alignment = TextAnchor.MiddleCenter;
+            scoreText.text = $"Score: {score}";
+            scoreText.color = Color.white;
+            scoreText.fontStyle = FontStyle.Bold;
+            scoreText.raycastTarget = false;
+            var srt = scoreGo.GetComponent<RectTransform>();
+            srt.anchoredPosition = new Vector2(0f, 0f);
+            srt.sizeDelta = new Vector2(260f, 50f);
+
+            await System.Threading.Tasks.Task.Delay(600);
+            if (token != _gameOverToken) return;
+
+            if (score > previousBest && previousBest > 0)
+            {
+                var bestGo = new GameObject("NewBestText", typeof(Text));
+                bestGo.transform.SetParent(container.transform, false);
+                var bestText = bestGo.GetComponent<Text>();
+                bestText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                bestText.fontSize = 24;
+                bestText.alignment = TextAnchor.MiddleCenter;
+                bestText.text = "NEW BEST!";
+                bestText.color = Color.yellow;
+                bestText.fontStyle = FontStyle.Bold;
+                bestText.raycastTarget = false;
+                var brt = bestGo.GetComponent<RectTransform>();
+                brt.anchoredPosition = new Vector2(0f, -40f);
+                brt.sizeDelta = new Vector2(200f, 40f);
+
+                float elapsed = 0f;
+                while (elapsed < 2f)
+                {
+                    if (token != _gameOverToken || bestGo == null) return;
+                    elapsed += Time.deltaTime;
+                    float pulse = 1f + Mathf.Sin(elapsed * 4f) * 0.1f;
+                    brt.localScale = Vector3.one * pulse;
+                    await System.Threading.Tasks.Task.Yield();
+                }
+            }
+        }
+
+        /// <summary> Refill tiles cascade onto the board in endless mode. </summary>
+        private async void HandleRefill()
+        {
+            var maxRenderedId = _boardView.GetMaxTileId();
+            var newTiles = new List<TileData>();
+            foreach (var tile in _endlessManager.Board.AllTiles)
+            {
+                if (!tile.isRemoved && tile.tileId > maxRenderedId)
+                    newTiles.Add(tile);
+            }
+
+            if (newTiles.Count > 0)
+                await _boardView.AnimateRefillTiles(newTiles);
+        }
+
         /// <summary> Update HUD: level number and triple progress. </summary>
         private void UpdateUI()
         {
+            if (_isEndlessMode)
+            {
+                if (_levelText != null)
+                    _levelText.text = $"Tier {_endlessManager.GetCurrentTier()}";
+
+                if (_progressText != null)
+                    _progressText.text = $"Score: {_endlessManager.GetCurrentScore()}";
+                return;
+            }
+
             if (_levelText != null)
                 _levelText.text = $"Level {_levelManager.State.currentLevel}";
 
@@ -374,22 +572,33 @@ namespace TileAdventure.Gameplay
         private async void Restart()
         {
             _starRevealToken++;
+            _gameOverToken++;
             _winPopup.SetActive(false);
             _losePopup.SetActive(false);
             _restartButton.gameObject.SetActive(false);
             _homeButton.gameObject.SetActive(false);
             _nextLevelButton.gameObject.SetActive(false);
-            _levelManager.Dispose();
+
+            if (_isEndlessMode)
+                _endlessManager?.Dispose();
+            else
+                _levelManager?.Dispose();
 
             var sceneLoader = new SceneLoader();
             await sceneLoader.LoadSceneAsync(_constants.gameplaySceneName);
         }
 
-        /// <summary> Return to Home scene. Disposes LevelManager to prevent leaks. </summary>
+        /// <summary> Return to Home scene. Disposes active manager to prevent leaks. </summary>
         private async void GoHome()
         {
             _starRevealToken++;
-            _levelManager.Dispose();
+            _gameOverToken++;
+
+            if (_isEndlessMode)
+                _endlessManager?.Dispose();
+            else
+                _levelManager?.Dispose();
+
             var sceneLoader = new SceneLoader();
             await sceneLoader.LoadSceneAsync(_constants.homeSceneName);
         }
@@ -410,18 +619,35 @@ namespace TileAdventure.Gameplay
         /// <summary> Tick the game timer every frame (paused on win/lose). </summary>
         private void Update()
         {
-            _levelManager?.Tick(Time.deltaTime);
+            if (_isEndlessMode)
+                _endlessManager?.Tick(Time.deltaTime);
+            else
+                _levelManager?.Tick(Time.deltaTime);
         }
 
         private void OnDestroy()
         {
             _starRevealToken++;
-            if (_levelManager != null && _levelManager.State != null && _levelManager.State.Combo != null)
+            _gameOverToken++;
+
+            if (_isEndlessMode)
             {
-                _levelManager.State.Combo.OnComboIncreased -= OnComboIncreased;
-                _levelManager.State.Combo.OnComboBroken -= OnComboBroken;
+                if (_endlessManager != null && _endlessManager.State != null && _endlessManager.State.Combo != null)
+                {
+                    _endlessManager.State.Combo.OnComboIncreased -= OnComboIncreased;
+                    _endlessManager.State.Combo.OnComboBroken -= OnComboBroken;
+                }
+                _endlessManager?.Dispose();
             }
-            _levelManager?.Dispose();
+            else
+            {
+                if (_levelManager != null && _levelManager.State != null && _levelManager.State.Combo != null)
+                {
+                    _levelManager.State.Combo.OnComboIncreased -= OnComboIncreased;
+                    _levelManager.State.Combo.OnComboBroken -= OnComboBroken;
+                }
+                _levelManager?.Dispose();
+            }
         }
 
         private void SpawnComboText(int comboLevel)

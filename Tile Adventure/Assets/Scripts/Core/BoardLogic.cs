@@ -222,5 +222,65 @@ namespace TileAdventure.Core
                 if (!t.isRemoved) count++;
             return count;
         }
+
+        /// <summary>
+        /// Generate and add new tiles to the board for endless mode refill.
+        /// Uses triple-first construction with the given difficulty params.
+        /// New tiles are placed on the same layers as existing tiles, avoiding occupied cells.
+        /// Returns the list of newly created TileData for view cascade animation.
+        /// </summary>
+        public List<TileData> AddRefillTiles(int tileCount, int activeIcons, int layerCount)
+        {
+            var rng = new System.Random();
+            var newTiles = new List<TileData>();
+
+            var maxId = 0;
+            foreach (var t in _allTiles)
+                if (t.tileId >= maxId) maxId = t.tileId;
+            var nextId = maxId + 1;
+
+            var layerCountActual = Math.Max(layerCount, 1);
+
+            var usedCells = new HashSet<Vector2Int>[layerCountActual];
+            for (int i = 0; i < layerCountActual; i++)
+                usedCells[i] = new HashSet<Vector2Int>();
+
+            foreach (var tile in _allTiles)
+            {
+                if (!tile.isRemoved && tile.layerIndex < layerCountActual)
+                    usedCells[tile.layerIndex].Add(tile.gridPosition);
+            }
+
+            var tripleCount = tileCount / _constants.matchCount;
+            var gridSize = Mathf.Max(6, Mathf.CeilToInt(Mathf.Sqrt(tileCount / (float)layerCountActual + 1) * 1.5f));
+
+            for (int t = 0; t < tripleCount; t++)
+            {
+                int iconId = rng.Next(activeIcons);
+
+                for (int i = 0; i < _constants.matchCount; i++)
+                {
+                    int layer = rng.Next(layerCountActual);
+                    Vector2Int pos;
+                    int attempts = 0;
+                    do
+                    {
+                        pos = new Vector2Int(rng.Next(gridSize), rng.Next(gridSize));
+                        attempts++;
+                    }
+                    while (usedCells[layer].Contains(pos) && attempts < 50);
+
+                    usedCells[layer].Add(pos);
+
+                    var worldPos = GridToWorld(pos, layer);
+                    var tile = new TileData(nextId++, iconId, layer, pos, worldPos);
+                    newTiles.Add(tile);
+                    _allTiles.Add(tile);
+                }
+            }
+
+            RefreshExposure();
+            return newTiles;
+        }
     }
 }
