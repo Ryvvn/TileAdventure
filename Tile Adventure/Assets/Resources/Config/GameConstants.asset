@@ -18,10 +18,29 @@ MonoBehaviour:
   tileSize: {x: 80, y: 80}
   tileSpacing: 10
   layerVisualOffset: 10
+  gridCellWidth: 80
+  gridCellHeight: 80
+  pyramidStaggerOffset: 24
+  layerVerticalOffset: 28
   maxLayers: 5
   tileMoveDuration: 0.3
   tileMatchClearDuration: 0.4
   tileMatchScaleUp: 1.3
+  hoverGlowScale: 1.08
+  boardCascadeDelayPerLayer: 0.04
+  boardCascadeDuration: 0.2
+  rackSnapOvershoot: 4
+  rackSnapBounceDuration: 0.08
+  layerScaleFalloff: 0.03
+  matchParticleCount: 30
+  matchParticleSpeed: 200
+  matchParticleDuration: 0.75
+  matchParticleSize: 20
+  matchParticleHueStep: 0.07
+  comboWindowDuration: 4
+  maxComboMultiplier: 5
+  comboTextLifetime: 1.5
+  screenShakeIntensity: 0.015
   doubleTapThreshold: 0.3
   blockedTileTint: {r: 0.4, g: 0.4, b: 0.4, a: 1}
   exposedTileColor: {r: 1, g: 1, b: 1, a: 1}

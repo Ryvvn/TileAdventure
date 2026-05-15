@@ -23,6 +23,7 @@ namespace TileAdventure.Services
             public int level;
             public int bestTriples;
             public float bestTime;
+            public int bestStars;
         }
     }
 
@@ -87,6 +88,14 @@ namespace TileAdventure.Services
             return levelNumber <= GetHighestUnlockedLevel();
         }
 
+        /// <summary> Get the best star rating for a specific level (0 = no score yet). </summary>
+        public int GetBestStars(int levelNumber)
+        {
+            if (_cachedData == null) Load();
+            var score = _cachedData.levelScores.Find(s => s.level == levelNumber);
+            return score?.bestStars ?? 0;
+        }
+
         /// <summary> Unlock a level (called on win). Only saves if the new level is higher than current max. </summary>
         public void UnlockLevel(int levelNumber)
         {
@@ -102,7 +111,7 @@ namespace TileAdventure.Services
         /// Record a level score (best time and most triples).
         /// Not currently used in UI, but stored for future features.
         /// </summary>
-        public void RecordLevelScore(int level, int triples, float time)
+        public void RecordLevelScore(int level, int triples, float time, int stars)
         {
             if (_cachedData == null) Load();
 
@@ -113,6 +122,8 @@ namespace TileAdventure.Services
                     existing.bestTime = time;
                 if (triples > existing.bestTriples)
                     existing.bestTriples = triples;
+                if (stars > existing.bestStars)
+                    existing.bestStars = stars;
             }
             else
             {
@@ -120,7 +131,8 @@ namespace TileAdventure.Services
                 {
                     level = level,
                     bestTriples = triples,
-                    bestTime = time
+                    bestTime = time,
+                    bestStars = stars
                 });
             }
 

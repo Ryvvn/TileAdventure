@@ -241,12 +241,18 @@ namespace TileAdventure.Gameplay
         /// Particles are small plain-color squares that fly outward from the board center
         /// and fade out. Called by GameplayController.OnMatchCleared.
         /// </summary>
-        public void SpawnMatchParticles(int iconId)
+        public void SpawnMatchParticles(int iconId, int comboLevel = 0)
         {
             var hue = (iconId * _constants.matchParticleHueStep) % 1f;
             var color = Color.HSVToRGB(hue, 0.8f, 0.95f);
 
-            for (int i = 0; i < _constants.matchParticleCount; i++)
+            int particleCount = _constants.matchParticleCount;
+            if (comboLevel > 0)
+            {
+                particleCount = comboLevel == 5 ? 24 : 2 + comboLevel * 4;
+            }
+
+            for (int i = 0; i < particleCount; i++)
             {
                 var go = new GameObject("Particle", typeof(RectTransform), typeof(Image), typeof(CanvasGroup));
                 go.transform.SetParent(_boardContainer, false);

@@ -41,6 +41,7 @@ namespace TileAdventure.UI
         /// <summary>
         /// Instantiate 10 level buttons in the grid container.
         /// Button state (unlocked/locked) is determined by save data.
+        /// Stars are displayed below each unlocked level button.
         /// </summary>
         private void BuildLevelGrid()
         {
@@ -53,14 +54,11 @@ namespace TileAdventure.UI
                 var label = buttonGo.GetComponentInChildren<Text>();
                 var isUnlocked = i <= highestUnlocked;
 
-                // Set level number text
                 if (label != null)
                     label.text = i.ToString();
 
-                // Locked buttons cannot be clicked
                 button.interactable = isUnlocked;
 
-                // Green = unlocked, Orange = locked
                 Sprite buttonSprite = null;
                 if (isUnlocked)
                     buttonSprite = Resources.Load<Sprite>("Images/UI/btn_green");
@@ -70,11 +68,46 @@ namespace TileAdventure.UI
                 if (buttonSprite != null && button.targetGraphic is Image img)
                     img.sprite = buttonSprite;
 
-                // Capture loop variable for closure
+                AddStarsToButton(buttonGo, i);
+
                 int levelNum = i;
                 button.onClick.AddListener(async () => await OnLevelSelected(levelNum));
 
                 _levelButtons.Add(button);
+            }
+        }
+
+        private void AddStarsToButton(GameObject buttonGo, int levelNumber)
+        {
+            var bestStars = _saveService.GetBestStars(levelNumber);
+
+            for (int s = 0; s < 3; s++)
+            {
+                var starGo = new GameObject($"Star_{s}", typeof(Text));
+                starGo.transform.SetParent(buttonGo.transform, false);
+
+                var text = starGo.GetComponent<Text>();
+                text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                text.fontSize = 16;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.raycastTarget = false;
+
+                var filled = s < bestStars;
+                text.text = filled ? "★" : "☆";
+                text.color = filled
+                    ? s switch
+                    {
+                        0 => new Color(0.8f, 0.5f, 0.2f),
+                        1 => new Color(0.75f, 0.75f, 0.75f),
+                        _ => Color.yellow
+                    }
+                    : new Color(0.4f, 0.4f, 0.4f, 1f);
+
+                var rt = starGo.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0.5f, 0f);
+                rt.anchorMax = new Vector2(0.5f, 0f);
+                rt.anchoredPosition = new Vector2((s - 1) * 20f, 6f);
+                rt.sizeDelta = new Vector2(18f, 18f);
             }
         }
 

@@ -21,11 +21,14 @@ namespace TileAdventure.Gameplay
         [SerializeField] private RectTransform _rackContainer;
         [SerializeField] private TileView _rackTilePrefab;
         [SerializeField] private GameConstants _constants;
+        [SerializeField] private GameObject _slotBorderPrefab;
 
         private List<TileView> _slotViews;
+        private List<Image> _slotBorders;
         private RackLogic _rack;
         private Sprite[] _iconSprites;
         private Sprite _backgroundSprite;
+        private Coroutine _pulseCoroutine;
 
         public void Initialize(RackLogic rack, Sprite[] iconSprites, Sprite backgroundSprite)
         {
@@ -33,6 +36,7 @@ namespace TileAdventure.Gameplay
             _iconSprites = iconSprites;
             _backgroundSprite = backgroundSprite;
             _slotViews = new List<TileView>();
+            _slotBorders = new List<Image>();
 
             _rack.OnTileAdded += OnTileAdded;
             _rack.OnMatchCleared += OnMatchCleared;
@@ -53,6 +57,15 @@ namespace TileAdventure.Gameplay
 
             for (int i = 0; i < count; i++)
             {
+                var borderGo = Instantiate(_slotBorderPrefab, _rackContainer);
+                borderGo.name = $"SlotBorder_{i}";
+                var borderRt = borderGo.GetComponent<RectTransform>();
+                borderRt.anchoredPosition = new Vector2(startX + i * (_constants.tileSize.x + _constants.tileSpacing), 0f);
+                // Make the border slighly bigger than the tile (1.5 times)
+                borderRt.sizeDelta = _constants.tileSize * 1.15f;
+                var borderImg = borderGo.GetComponent<Image>();
+                _slotBorders.Add(borderImg);
+
                 var slotView = Instantiate(_rackTilePrefab, _rackContainer);
                 var rt = slotView.GetComponent<RectTransform>();
 
@@ -285,6 +298,61 @@ namespace TileAdventure.Gameplay
         {
             if (slotIndex < 0 || slotIndex >= _slotViews.Count) return Vector2.zero;
             return _slotViews[slotIndex].GetComponent<RectTransform>().position;
+        }
+
+        public void StartBorderPulse(int comboLevel)
+        {
+            if (_slotBorders == null || _slotBorders.Count == 0) return;
+            if (_pulseCoroutine != null)
+                StopCoroutine(_pulseCoroutine);
+            _pulseCoroutine = StartCoroutine(PulseBorderCoroutine(comboLevel));
+        }
+
+        public void StopBorderPulse()
+        {
+            if (_pulseCoroutine != null)
+            {
+                StopCoroutine(_pulseCoroutine);
+                _pulseCoroutine = null;
+                foreach (var border in _slotBorders)
+                {
+                    if (border != null)
+                    {
+                        border.rectTransform.localScale = Vector3.one;
+                        border.color = Color.white;
+                    }
+                }
+            }
+        }
+
+        private System.Collections.IEnumerator PulseBorderCoroutine(int comboLevel)
+        {
+            var color = comboLevel switch
+            {
+                2 => Color.yellow,
+                3 => new Color(1f, 0.6f, 0f),
+                4 => Color.red,
+                5 => Color.magenta,
+                _ => Color.white
+            };
+
+            var frequency = comboLevel * 2f;
+
+            while (true)
+            {
+                var scale = 1f + Mathf.Sin(Time.time * frequency * Mathf.PI * 2f) * 0.025f;
+                var scaleVec = new Vector3(scale, scale, 1f);
+                float alpha = 0.5f + Mathf.Sin(Time.time * frequency * Mathf.PI * 2f) * 0.3f;
+
+                foreach (var border in _slotBorders)
+                {
+                    if (border == null) continue;
+                    border.rectTransform.localScale = scaleVec;
+                    border.color = new Color(color.r, color.g, color.b, alpha);
+                }
+
+                yield return null;
+            }
         }
 
         private void OnDestroy()

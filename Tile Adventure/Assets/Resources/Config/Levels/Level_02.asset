@@ -17,6 +17,7 @@ MonoBehaviour:
   layerCount: 2
   activeIconCount: 6
   rackSlotCount: 7
+  silverTimeThreshold: 50
   tiles:
   - iconId: 4
     layerIndex: 0

@@ -33,6 +33,8 @@ namespace TileAdventure.Gameplay
         [SerializeField] private GameObject _losePopup;
         [SerializeField] private Button _restartButton;
         [SerializeField] private Button _homeButton;
+        [SerializeField] private Button _nextLevelButton;
+        [SerializeField] private RectTransform _comboTextContainer;
 
         // Core layer (plain C#)
         private LevelManager _levelManager;
@@ -41,6 +43,12 @@ namespace TileAdventure.Gameplay
         private Sprite[] _iconSprites;
         private Sprite _tileBackground;
         private AudioManager _audio;
+
+        private Camera _camera;
+        private Vector3 _cameraRestPosition;
+        private int _shakeToken;
+        private SaveService _saveService;
+        private int _starRevealToken;
 
         /// <summary>
         /// Entry point. Reads the level selected on the Home screen,
@@ -63,6 +71,10 @@ namespace TileAdventure.Gameplay
         public async void Initialize(int levelNumber, LevelConfig config = null)
         {
             _audio = AudioManager.Instance;
+            _camera = Camera.main;
+            _cameraRestPosition = _camera != null ? _camera.transform.position : Vector3.zero;
+            _saveService = new SaveService();
+            _starRevealToken = 0;
             _levelManager?.Dispose();
             _levelManager = new LevelManager(_constants);
             LoadSprites();
@@ -76,7 +88,7 @@ namespace TileAdventure.Gameplay
             {
                 var def = LevelGenerator.GetLevelDefinition(levelNumber);
                 _levelManager.LoadLevelProcedural(levelNumber,
-                    def.targetTriples, def.layerCount, def.activeIconCount, def.rackSlotCount);
+                    def.targetTriples, def.layerCount, def.activeIconCount, def.rackSlotCount, def.silverTimeThreshold);
             }
 
             // Wire core → controller events
@@ -84,6 +96,10 @@ namespace TileAdventure.Gameplay
             _levelManager.OnLevelLost += OnLost;
             _levelManager.Rack.OnMatchCleared += OnMatchCleared;
             _levelManager.Rack.OnRackOverflow += OnRackOverflow;
+
+            // Wire combo events
+            _levelManager.State.Combo.OnComboIncreased += OnComboIncreased;
+            _levelManager.State.Combo.OnComboBroken += OnComboBroken;
 
             // Wire views to core data
             _boardView.Initialize(_levelManager.Board, _iconSprites, _tileBackground);
@@ -99,6 +115,8 @@ namespace TileAdventure.Gameplay
             _homeButton.onClick.AddListener(GoHome);
             _restartButton.gameObject.SetActive(false);
             _homeButton.gameObject.SetActive(false);
+            _nextLevelButton.gameObject.SetActive(false);
+            _nextLevelButton.onClick.AddListener(NextLevel);
 
             // Popups start hidden
             _winPopup.SetActive(false);
@@ -142,6 +160,8 @@ namespace TileAdventure.Gameplay
             if (tile.isRemoved || tile.isMoving)
                 return;
 
+            tile.isMoving = true;
+
             if (_levelManager.Rack.WouldOverflowWithNext())
             {
                 _levelManager.State.MarkLost();
@@ -167,17 +187,35 @@ namespace TileAdventure.Gameplay
 
         /// <summary>
         /// Match-3 was cleared in the rack.
-        /// Plays match SFX, increments the triple counter, and refreshes board visuals.
+        /// Registers combo, plays match SFX, increments the triple counter,
+        /// spawns scaled particles, and refreshes board visuals.
         /// Rack visual refresh is handled by RackView's own OnMatchCleared async handler.
         /// </summary>
         private void OnMatchCleared(int first, int last, int iconId)
         {
+            if (_levelManager.State.phase != GamePhase.Playing)
+                return;
+
+            _levelManager.State.Combo.RegisterMatch();
+
             _audio?.PlayMatch();
             _levelManager.State.RecordTripleCleared();
 
-            _boardView.SpawnMatchParticles(iconId);
+            _boardView.SpawnMatchParticles(iconId, _levelManager.State.Combo.CurrentCombo);
             _boardView.RefreshAllTiles();
             UpdateUI();
+        }
+
+        private void OnComboIncreased(int comboLevel)
+        {
+            SpawnComboText(comboLevel);
+            ShakeCamera(comboLevel);
+            _rackView.StartBorderPulse(comboLevel);
+        }
+
+        private void OnComboBroken()
+        {
+            _rackView.StopBorderPulse();
         }
 
         private void OnRackOverflow()
@@ -185,15 +223,132 @@ namespace TileAdventure.Gameplay
             UpdateUI();
         }
 
-        /// <summary> Win condition reached. Save progress and show popup. </summary>
-        private void OnWon()
+        /// <summary> Win condition reached. Calculate stars, save progress, show popup with star reveal. </summary>
+        private async void OnWon()
         {
-            var saveService = new SaveService();
-            saveService.UnlockLevel(_levelManager.State.currentLevel + 1);
+            var stars = _levelManager.State.CalculateStars();
+
+            var previousBest = _saveService.GetBestStars(_levelManager.State.currentLevel);
+            _saveService.UnlockLevel(_levelManager.State.currentLevel + 1);
+            _saveService.RecordLevelScore(_levelManager.State.currentLevel,
+                _levelManager.State.triplesCleared, _levelManager.State.timeElapsed, stars);
 
             _winPopup.SetActive(true);
             _restartButton.gameObject.SetActive(true);
             _homeButton.gameObject.SetActive(true);
+            _nextLevelButton.gameObject.SetActive(true);
+
+            _starRevealToken++;
+            var token = _starRevealToken;
+            await RevealStars(stars, previousBest, token);
+        }
+
+        private async System.Threading.Tasks.Task RevealStars(int stars, int previousBest, int token)
+        {
+            var starContainer = CreateStarContainer();
+            var starTexts = new Text[3];
+
+            for (int i = 0; i < 3; i++)
+            {
+                var go = new GameObject($"Star_{i}", typeof(Text));
+                go.transform.SetParent(starContainer, false);
+                var text = go.GetComponent<Text>();
+                text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                text.fontSize = 48;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.text = "☆";
+                text.color = new Color(0.5f, 0.5f, 0.5f, 1f);
+                text.raycastTarget = false;
+
+                var rt = go.GetComponent<RectTransform>();
+                rt.anchoredPosition = new Vector2((i - 1) * 70f, 0f);
+                rt.sizeDelta = new Vector2(60f, 60f);
+
+                starTexts[i] = text;
+            }
+
+            await System.Threading.Tasks.Task.Delay(500);
+            if (token != _starRevealToken) return;
+
+            for (int i = 0; i < stars; i++)
+            {
+                if (token != _starRevealToken) return;
+
+                starTexts[i].text = "★";
+                starTexts[i].color = i switch
+                {
+                    0 => new Color(0.8f, 0.5f, 0.2f),
+                    1 => new Color(0.75f, 0.75f, 0.75f),
+                    2 => Color.yellow,
+                    _ => Color.white
+                };
+
+                var rt = starTexts[i].GetComponent<RectTransform>();
+                float elapsed = 0f;
+                var bounceDuration = 0.3f;
+                var originalScale = rt.localScale;
+                while (elapsed < bounceDuration)
+                {
+                    if (token != _starRevealToken || rt == null) return;
+                    elapsed += Time.deltaTime;
+                    float t = elapsed / bounceDuration;
+                    float scale = 1f + Mathf.Sin(t * Mathf.PI) * 0.4f;
+                    rt.localScale = originalScale * scale;
+                    await System.Threading.Tasks.Task.Yield();
+                }
+                rt.localScale = originalScale;
+
+                _audio?.PlayTap();
+                await System.Threading.Tasks.Task.Delay(400);
+            }
+
+            if (stars > previousBest)
+            {
+                if (token != _starRevealToken) return;
+
+                var bestGo = new GameObject("NewBestText", typeof(Text));
+                bestGo.transform.SetParent(starContainer, false);
+                var bestText = bestGo.GetComponent<Text>();
+                bestText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                bestText.fontSize = 28;
+                bestText.alignment = TextAnchor.MiddleCenter;
+                bestText.text = "NEW BEST!";
+                bestText.color = Color.yellow;
+                bestText.fontStyle = FontStyle.Bold;
+                bestText.raycastTarget = false;
+
+                var rt = bestGo.GetComponent<RectTransform>();
+                rt.anchoredPosition = new Vector2(0f, -60f);
+                rt.sizeDelta = new Vector2(200f, 40f);
+
+                float elapsed = 0f;
+                while (elapsed < 2f)
+                {
+                    if (token != _starRevealToken || bestGo == null) return;
+                    elapsed += Time.deltaTime;
+                    float pulse = 1f + Mathf.Sin(elapsed * 4f) * 0.1f;
+                    rt.localScale = Vector3.one * pulse;
+                    await System.Threading.Tasks.Task.Yield();
+                }
+
+                if (bestGo != null)
+                    Destroy(bestGo);
+            }
+
+            if (starContainer != null)
+                Destroy(starContainer.gameObject, 0.5f);
+        }
+
+        private Transform CreateStarContainer()
+        {
+            var go = new GameObject("StarContainer", typeof(RectTransform));
+            var rt = go.GetComponent<RectTransform>();
+            rt.SetParent(_winPopup.transform, false);
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, -100f);
+            rt.sizeDelta = new Vector2(300f, 100f);
+            return go.transform;
         }
 
         /// <summary> Lose condition triggered (rack overflow). Show popup. </summary>
@@ -218,10 +373,12 @@ namespace TileAdventure.Gameplay
         /// <summary> Reload the gameplay scene (full reset). </summary>
         private async void Restart()
         {
+            _starRevealToken++;
             _winPopup.SetActive(false);
             _losePopup.SetActive(false);
             _restartButton.gameObject.SetActive(false);
             _homeButton.gameObject.SetActive(false);
+            _nextLevelButton.gameObject.SetActive(false);
             _levelManager.Dispose();
 
             var sceneLoader = new SceneLoader();
@@ -231,9 +388,23 @@ namespace TileAdventure.Gameplay
         /// <summary> Return to Home scene. Disposes LevelManager to prevent leaks. </summary>
         private async void GoHome()
         {
+            _starRevealToken++;
             _levelManager.Dispose();
             var sceneLoader = new SceneLoader();
             await sceneLoader.LoadSceneAsync(_constants.homeSceneName);
+        }
+
+        /// <summary> Go to the next level. </summary>
+        private async void NextLevel()
+        {
+            _starRevealToken++;
+            var nextLevel = _levelManager.State.currentLevel + 1;
+            PlayerPrefs.SetInt("SelectedLevel", nextLevel);
+            PlayerPrefs.Save();
+
+            _levelManager.Dispose();
+            var sceneLoader = new SceneLoader();
+            await sceneLoader.LoadSceneAsync(_constants.gameplaySceneName);
         }
 
         /// <summary> Tick the game timer every frame (paused on win/lose). </summary>
@@ -244,7 +415,106 @@ namespace TileAdventure.Gameplay
 
         private void OnDestroy()
         {
+            _starRevealToken++;
+            if (_levelManager != null && _levelManager.State != null && _levelManager.State.Combo != null)
+            {
+                _levelManager.State.Combo.OnComboIncreased -= OnComboIncreased;
+                _levelManager.State.Combo.OnComboBroken -= OnComboBroken;
+            }
             _levelManager?.Dispose();
+        }
+
+        private void SpawnComboText(int comboLevel)
+        {
+            var container = _comboTextContainer != null
+                ? _comboTextContainer
+                : (RectTransform)transform;
+
+            var go = new GameObject("ComboText", typeof(Text));
+            go.transform.SetParent(container, false);
+
+            var text = go.GetComponent<Text>();
+            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            text.fontSize = 36 + comboLevel * 4;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.fontStyle = FontStyle.Bold;
+            text.raycastTarget = false;
+
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchoredPosition = new Vector2(0f, 100f + comboLevel * 20f);
+            rt.sizeDelta = new Vector2(400f, 60f);
+
+            var (label, color) = comboLevel switch
+            {
+                1 => ("Nice!", Color.white),
+                2 => ("COMBO x2!", Color.yellow),
+                3 => ("COMBO x3!", new Color(1f, 0.6f, 0f)),
+                4 => ("COMBO x4!", Color.red),
+                5 => ("MAX COMBO!", Color.magenta),
+                _ => ($"COMBO x{comboLevel}!", Color.magenta)
+            };
+
+            text.text = label;
+            text.color = color;
+
+            AnimateComboText(go);
+        }
+
+        private async void AnimateComboText(GameObject go)
+        {
+            var rt = go.GetComponent<RectTransform>();
+            var text = go.GetComponent<Text>();
+            var startPos = rt.anchoredPosition;
+            var lifetime = _constants.comboTextLifetime;
+            float elapsed = 0f;
+
+            while (elapsed < lifetime)
+            {
+                if (go == null) return;
+                elapsed += Time.deltaTime;
+                float t = elapsed / lifetime;
+                rt.anchoredPosition = startPos + new Vector2(0f, 40f * t);
+                text.color = new Color(text.color.r, text.color.g, text.color.b, 1f - t);
+                await System.Threading.Tasks.Task.Yield();
+            }
+
+            if (go != null)
+                Destroy(go);
+        }
+
+        private void ShakeCamera(int comboLevel)
+        {
+            if (_camera == null || comboLevel <= 1) return;
+
+            _shakeToken++;
+            var token = _shakeToken;
+            StartCoroutine(ShakeCameraCoroutine(comboLevel, token));
+        }
+
+        private System.Collections.IEnumerator ShakeCameraCoroutine(int comboLevel, int token)
+        {
+            var amplitude = comboLevel * _constants.screenShakeIntensity;
+            var duration = 0.25f;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                if (token != _shakeToken || _camera == null)
+                {
+                    if (_camera != null)
+                        _camera.transform.position = _cameraRestPosition;
+                    yield break;
+                }
+                elapsed += Time.deltaTime;
+                float decay = 1f - elapsed / duration;
+                float x = Mathf.Sin(elapsed * 40f) * amplitude * decay;
+                float y = Mathf.Cos(elapsed * 50f) * amplitude * decay;
+                _camera.transform.position = _cameraRestPosition + new Vector3(x, y, 0f);
+                yield return null;
+            }
+
+            if (token == _shakeToken && _camera != null)
+                _camera.transform.position = _cameraRestPosition;
         }
     }
 }
