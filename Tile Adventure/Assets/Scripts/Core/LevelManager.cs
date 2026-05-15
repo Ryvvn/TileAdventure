@@ -40,7 +40,7 @@ namespace TileAdventure.Core
             Board = new BoardLogic(_constants);
             Rack = new RackLogic(_constants, config.rackSlotCount);
             State = new GameState(config.levelNumber, config.targetTriples,
-                _constants.comboWindowDuration, _constants.maxComboMultiplier);
+                _constants.comboWindowDuration, _constants.maxComboMultiplier, config.silverTimeThreshold);
             State.Combo.Reset();
 
             if (config.tiles != null && config.tiles.Count > 0)
@@ -61,12 +61,12 @@ namespace TileAdventure.Core
         /// Load a level procedurally using raw difficulty numbers (no ScriptableObject).
         /// Used when LevelConfig asset is missing or the level was selected without one.
         /// </summary>
-        public void LoadLevelProcedural(int levelNumber, int targetTriples, int layerCount, int activeIcons, int rackSlots)
+        public void LoadLevelProcedural(int levelNumber, int targetTriples, int layerCount, int activeIcons, int rackSlots, float silverTimeThreshold)
         {
             Board = new BoardLogic(_constants);
             Rack = new RackLogic(_constants, rackSlots);
             State = new GameState(levelNumber, targetTriples,
-                _constants.comboWindowDuration, _constants.maxComboMultiplier);
+                _constants.comboWindowDuration, _constants.maxComboMultiplier, silverTimeThreshold);
             State.Combo.Reset();
 
             Board.GenerateBoard(targetTriples, layerCount, activeIcons);

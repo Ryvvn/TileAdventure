@@ -33,6 +33,10 @@ namespace TileAdventure.Config
         [Tooltip("Rack size for this level (smaller = easier to overflow = harder).")]
         public int rackSlotCount = 7;
 
+        [Header("Star Rating")]
+        [Tooltip("Seconds the player must beat to earn a silver star.")]
+        public float silverTimeThreshold = 45f;
+
         /// <summary>
         /// Describes a single tile on the board: which icon, which layer, which grid cell.
         /// Used both in hand-authored configs and procedurally generated ones.

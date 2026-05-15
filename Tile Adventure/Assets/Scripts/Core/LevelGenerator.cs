@@ -30,6 +30,7 @@ namespace TileAdventure.Core
             config.layerCount = def.layerCount;
             config.activeIconCount = def.activeIconCount;
             config.rackSlotCount = def.rackSlotCount;
+            config.silverTimeThreshold = def.silverTimeThreshold;
             config.tiles = GenerateSolvableLayout(def, levelNumber);
 
             return config;
@@ -50,17 +51,17 @@ namespace TileAdventure.Core
         {
             return levelNumber switch
             {
-                1 => new LevelDefinition { targetTriples = 3, layerCount = 2, activeIconCount = 5, rackSlotCount = 7 },
-                2 => new LevelDefinition { targetTriples = 4, layerCount = 2, activeIconCount = 6, rackSlotCount = 7 },
-                3 => new LevelDefinition { targetTriples = 4, layerCount = 3, activeIconCount = 6, rackSlotCount = 7 },
-                4 => new LevelDefinition { targetTriples = 5, layerCount = 3, activeIconCount = 7, rackSlotCount = 7 },
-                5 => new LevelDefinition { targetTriples = 5, layerCount = 3, activeIconCount = 8, rackSlotCount = 6 },
-                6 => new LevelDefinition { targetTriples = 6, layerCount = 4, activeIconCount = 8, rackSlotCount = 6 },
-                7 => new LevelDefinition { targetTriples = 6, layerCount = 4, activeIconCount = 9, rackSlotCount = 6 },
-                8 => new LevelDefinition { targetTriples = 7, layerCount = 4, activeIconCount = 10, rackSlotCount = 6 },
-                9 => new LevelDefinition { targetTriples = 7, layerCount = 5, activeIconCount = 11, rackSlotCount = 5 },
-                10 => new LevelDefinition { targetTriples = 8, layerCount = 5, activeIconCount = 12, rackSlotCount = 5 },
-                _ => new LevelDefinition { targetTriples = 3, layerCount = 2, activeIconCount = 5, rackSlotCount = 7 }
+                1 => new LevelDefinition { targetTriples = 3, layerCount = 2, activeIconCount = 5, rackSlotCount = 7, silverTimeThreshold = 45f },
+                2 => new LevelDefinition { targetTriples = 4, layerCount = 2, activeIconCount = 6, rackSlotCount = 7, silverTimeThreshold = 50f },
+                3 => new LevelDefinition { targetTriples = 4, layerCount = 3, activeIconCount = 6, rackSlotCount = 7, silverTimeThreshold = 55f },
+                4 => new LevelDefinition { targetTriples = 5, layerCount = 3, activeIconCount = 7, rackSlotCount = 7, silverTimeThreshold = 60f },
+                5 => new LevelDefinition { targetTriples = 5, layerCount = 3, activeIconCount = 8, rackSlotCount = 6, silverTimeThreshold = 55f },
+                6 => new LevelDefinition { targetTriples = 6, layerCount = 4, activeIconCount = 8, rackSlotCount = 6, silverTimeThreshold = 65f },
+                7 => new LevelDefinition { targetTriples = 6, layerCount = 4, activeIconCount = 9, rackSlotCount = 6, silverTimeThreshold = 65f },
+                8 => new LevelDefinition { targetTriples = 7, layerCount = 4, activeIconCount = 10, rackSlotCount = 6, silverTimeThreshold = 70f },
+                9 => new LevelDefinition { targetTriples = 7, layerCount = 5, activeIconCount = 11, rackSlotCount = 5, silverTimeThreshold = 60f },
+                10 => new LevelDefinition { targetTriples = 8, layerCount = 5, activeIconCount = 12, rackSlotCount = 5, silverTimeThreshold = 75f },
+                _ => new LevelDefinition { targetTriples = 3, layerCount = 2, activeIconCount = 5, rackSlotCount = 7, silverTimeThreshold = 45f }
             };
         }
 
@@ -135,6 +136,7 @@ namespace TileAdventure.Core
             public int layerCount;
             public int activeIconCount;
             public int rackSlotCount;
+            public float silverTimeThreshold;
         }
     }
 }

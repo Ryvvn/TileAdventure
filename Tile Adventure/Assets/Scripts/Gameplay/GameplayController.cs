@@ -47,6 +47,8 @@ namespace TileAdventure.Gameplay
         private Camera _camera;
         private Vector3 _cameraRestPosition;
         private int _shakeToken;
+        private SaveService _saveService;
+        private int _starRevealToken;
 
         /// <summary>
         /// Entry point. Reads the level selected on the Home screen,
@@ -71,6 +73,8 @@ namespace TileAdventure.Gameplay
             _audio = AudioManager.Instance;
             _camera = Camera.main;
             _cameraRestPosition = _camera != null ? _camera.transform.position : Vector3.zero;
+            _saveService = new SaveService();
+            _starRevealToken = 0;
             _levelManager?.Dispose();
             _levelManager = new LevelManager(_constants);
             LoadSprites();
@@ -84,7 +88,7 @@ namespace TileAdventure.Gameplay
             {
                 var def = LevelGenerator.GetLevelDefinition(levelNumber);
                 _levelManager.LoadLevelProcedural(levelNumber,
-                    def.targetTriples, def.layerCount, def.activeIconCount, def.rackSlotCount);
+                    def.targetTriples, def.layerCount, def.activeIconCount, def.rackSlotCount, def.silverTimeThreshold);
             }
 
             // Wire core → controller events
@@ -219,18 +223,132 @@ namespace TileAdventure.Gameplay
             UpdateUI();
         }
 
-        /// <summary> Win condition reached. Save progress and show popup. </summary>
-        private void OnWon()
+        /// <summary> Win condition reached. Calculate stars, save progress, show popup with star reveal. </summary>
+        private async void OnWon()
         {
-            _levelManager.State.SyncComboAchieved();
+            var stars = _levelManager.State.CalculateStars();
 
-            var saveService = new SaveService();
-            saveService.UnlockLevel(_levelManager.State.currentLevel + 1);
+            var previousBest = _saveService.GetBestStars(_levelManager.State.currentLevel);
+            _saveService.UnlockLevel(_levelManager.State.currentLevel + 1);
+            _saveService.RecordLevelScore(_levelManager.State.currentLevel,
+                _levelManager.State.triplesCleared, _levelManager.State.timeElapsed, stars);
 
             _winPopup.SetActive(true);
             _restartButton.gameObject.SetActive(true);
             _homeButton.gameObject.SetActive(true);
             _nextLevelButton.gameObject.SetActive(true);
+
+            _starRevealToken++;
+            var token = _starRevealToken;
+            await RevealStars(stars, previousBest, token);
+        }
+
+        private async System.Threading.Tasks.Task RevealStars(int stars, int previousBest, int token)
+        {
+            var starContainer = CreateStarContainer();
+            var starTexts = new Text[3];
+
+            for (int i = 0; i < 3; i++)
+            {
+                var go = new GameObject($"Star_{i}", typeof(Text));
+                go.transform.SetParent(starContainer, false);
+                var text = go.GetComponent<Text>();
+                text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                text.fontSize = 48;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.text = "☆";
+                text.color = new Color(0.5f, 0.5f, 0.5f, 1f);
+                text.raycastTarget = false;
+
+                var rt = go.GetComponent<RectTransform>();
+                rt.anchoredPosition = new Vector2((i - 1) * 70f, 0f);
+                rt.sizeDelta = new Vector2(60f, 60f);
+
+                starTexts[i] = text;
+            }
+
+            await System.Threading.Tasks.Task.Delay(500);
+            if (token != _starRevealToken) return;
+
+            for (int i = 0; i < stars; i++)
+            {
+                if (token != _starRevealToken) return;
+
+                starTexts[i].text = "★";
+                starTexts[i].color = i switch
+                {
+                    0 => new Color(0.8f, 0.5f, 0.2f),
+                    1 => new Color(0.75f, 0.75f, 0.75f),
+                    2 => Color.yellow,
+                    _ => Color.white
+                };
+
+                var rt = starTexts[i].GetComponent<RectTransform>();
+                float elapsed = 0f;
+                var bounceDuration = 0.3f;
+                var originalScale = rt.localScale;
+                while (elapsed < bounceDuration)
+                {
+                    if (token != _starRevealToken || rt == null) return;
+                    elapsed += Time.deltaTime;
+                    float t = elapsed / bounceDuration;
+                    float scale = 1f + Mathf.Sin(t * Mathf.PI) * 0.4f;
+                    rt.localScale = originalScale * scale;
+                    await System.Threading.Tasks.Task.Yield();
+                }
+                rt.localScale = originalScale;
+
+                _audio?.PlayTap();
+                await System.Threading.Tasks.Task.Delay(400);
+            }
+
+            if (stars > previousBest)
+            {
+                if (token != _starRevealToken) return;
+
+                var bestGo = new GameObject("NewBestText", typeof(Text));
+                bestGo.transform.SetParent(starContainer, false);
+                var bestText = bestGo.GetComponent<Text>();
+                bestText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                bestText.fontSize = 28;
+                bestText.alignment = TextAnchor.MiddleCenter;
+                bestText.text = "NEW BEST!";
+                bestText.color = Color.yellow;
+                bestText.fontStyle = FontStyle.Bold;
+                bestText.raycastTarget = false;
+
+                var rt = bestGo.GetComponent<RectTransform>();
+                rt.anchoredPosition = new Vector2(0f, -60f);
+                rt.sizeDelta = new Vector2(200f, 40f);
+
+                float elapsed = 0f;
+                while (elapsed < 2f)
+                {
+                    if (token != _starRevealToken || bestGo == null) return;
+                    elapsed += Time.deltaTime;
+                    float pulse = 1f + Mathf.Sin(elapsed * 4f) * 0.1f;
+                    rt.localScale = Vector3.one * pulse;
+                    await System.Threading.Tasks.Task.Yield();
+                }
+
+                if (bestGo != null)
+                    Destroy(bestGo);
+            }
+
+            if (starContainer != null)
+                Destroy(starContainer.gameObject, 0.5f);
+        }
+
+        private Transform CreateStarContainer()
+        {
+            var go = new GameObject("StarContainer", typeof(RectTransform));
+            var rt = go.GetComponent<RectTransform>();
+            rt.SetParent(_winPopup.transform, false);
+            rt.anchorMin = new Vector2(0.5f, 0.5f);
+            rt.anchorMax = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = new Vector2(0f, -100f);
+            rt.sizeDelta = new Vector2(300f, 100f);
+            return go.transform;
         }
 
         /// <summary> Lose condition triggered (rack overflow). Show popup. </summary>
@@ -255,6 +373,7 @@ namespace TileAdventure.Gameplay
         /// <summary> Reload the gameplay scene (full reset). </summary>
         private async void Restart()
         {
+            _starRevealToken++;
             _winPopup.SetActive(false);
             _losePopup.SetActive(false);
             _restartButton.gameObject.SetActive(false);
@@ -269,6 +388,7 @@ namespace TileAdventure.Gameplay
         /// <summary> Return to Home scene. Disposes LevelManager to prevent leaks. </summary>
         private async void GoHome()
         {
+            _starRevealToken++;
             _levelManager.Dispose();
             var sceneLoader = new SceneLoader();
             await sceneLoader.LoadSceneAsync(_constants.homeSceneName);
@@ -277,6 +397,7 @@ namespace TileAdventure.Gameplay
         /// <summary> Go to the next level. </summary>
         private async void NextLevel()
         {
+            _starRevealToken++;
             var nextLevel = _levelManager.State.currentLevel + 1;
             PlayerPrefs.SetInt("SelectedLevel", nextLevel);
             PlayerPrefs.Save();
@@ -294,6 +415,7 @@ namespace TileAdventure.Gameplay
 
         private void OnDestroy()
         {
+            _starRevealToken++;
             if (_levelManager != null && _levelManager.State != null && _levelManager.State.Combo != null)
             {
                 _levelManager.State.Combo.OnComboIncreased -= OnComboIncreased;

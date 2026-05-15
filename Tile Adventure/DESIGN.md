@@ -91,6 +91,53 @@ Loading → Home → Gameplay → (win/lose) → Home (or restart)
 
 `SceneBootstrapper` handles Camera configuration and `CanvasScaler` setup per scene. Each scene's logic starts from its own entry point (`HomeScreen.Start()`, `GameplayController.Start()`). `SceneLoader` wraps `SceneManager.LoadSceneAsync` with a loading screen fade.
 
+### 1.5 Combo System
+
+**Decision:** `ComboSystem` is a standalone plain C# class — owned by `GameState`, driven by `GameplayController`.
+
+```
+GameState
+    └── ComboSystem
+            ├── CurrentCombo: int (0 = no active combo)
+            ├── MaxComboThisLevel: int (tracked for star rating)
+            ├── ComboTimer: float (counts down from 4s)
+            ├── events: OnComboIncreased(int), OnComboBroken, OnComboTick(float)
+            ├── RegisterMatch() — called from OnMatchCleared, increments combo + resets timer
+            ├── Tick(float dt) — called from Update(), decrements timer
+            └── Reset() — called on level restart
+```
+
+**Why separate from GameState:**
+- Single Responsibility: `GameState` tracks win/lose/triples; `ComboSystem` tracks combo timing.
+- Testable in isolation: combo timing logic can be unit-tested without level context.
+- Clean event surface: `GameplayController` subscribes to `OnComboIncreased` → floating text + screen shake + rack border pulse, `OnComboBroken` → stops border pulse, `OnComboTick` → UI combo bar.
+
+**Combo rules:**
+
+| Rule | Value |
+|------|-------|
+| Window duration | 4.0s (configurable in `GameConstants`) |
+| Multiplier cap | ×5 |
+| Progression | 1 → 2 → 3 → 4 → 5 (each match increments) |
+| Break | Timer expires → `CurrentCombo` resets to 0 |
+| Chain reactions | Multiple matches in one frame all increment the combo |
+
+**Visual feedback per combo level:**
+
+| Level | Floating Text | Rack Border | Particles | Screen Shake |
+|-------|---------------|-------------|-----------|--------------|
+| ×1 | "Nice!" (white) | White | 6 (default) | None |
+| ×2 | "COMBO x2!" (yellow) | Yellow pulse | 10 | Light |
+| ×3 | "COMBO x3!" (orange) | Orange pulse | 14 | Medium |
+| ×4 | "COMBO x4!" (red) | Red pulse | 18 | Heavy |
+| ×5 | "MAX COMBO!" (magenta) | Magenta + sparkle | 24 | Max |
+
+**Integration points:**
+- `GameConstants` provides `comboWindowDuration` (default 4.0f) and `maxComboMultiplier` (default 5)
+- `GameplayController.OnMatchCleared()` calls `State.Combo.RegisterMatch()` before anything else
+- `GameplayController.Update()` calls `State.Combo.Tick(Time.deltaTime)` via `LevelManager.Tick()`
+- Combo text animation reuses the existing async `Task.Yield()` pattern (consistent with tile flight)
+
 ---
 
 ## 2. How Level Data Is Structured
@@ -132,24 +179,57 @@ This means level designers can author levels in the Editor, or the game can gene
 
 ### 2.3 Difficulty Curve
 
-| Level | Triples | Layers | Icons | Rack Slots | Difficulty |
-|-------|---------|--------|-------|------------|------------|
-| 1 | 3 | 2 | 5 | 7 | Tutorial |
-| 2 | 4 | 2 | 6 | 7 | Easy |
-| 3 | 4 | 3 | 6 | 7 | Easy+ |
-| 4 | 5 | 3 | 7 | 7 | Medium |
-| 5 | 5 | 3 | 8 | 6 | Medium+ |
-| 6 | 6 | 4 | 8 | 6 | Hard |
-| 7 | 6 | 4 | 9 | 6 | Hard+ |
-| 8 | 7 | 4 | 10 | 6 | Expert |
-| 9 | 7 | 5 | 11 | 5 | Expert+ |
-| 10 | 8 | 5 | 12 | 5 | Master |
+| Level | Triples | Layers | Icons | Rack Slots | Silver Time | Difficulty |
+|-------|---------|--------|-------|------------|-------------|------------|
+| 1 | 3 | 2 | 5 | 7 | 45s | Tutorial |
+| 2 | 4 | 2 | 6 | 7 | 50s | Easy |
+| 3 | 4 | 3 | 6 | 7 | 55s | Easy+ |
+| 4 | 5 | 3 | 7 | 7 | 60s | Medium |
+| 5 | 5 | 3 | 8 | 6 | 55s | Medium+ |
+| 6 | 6 | 4 | 8 | 6 | 65s | Hard |
+| 7 | 6 | 4 | 9 | 6 | 65s | Hard+ |
+| 8 | 7 | 4 | 10 | 6 | 70s | Expert |
+| 9 | 7 | 5 | 11 | 5 | 60s | Expert+ |
+| 10 | 8 | 5 | 12 | 5 | 75s | Master |
 
-The design tightens three knobs simultaneously: more layers (blocking), more icons (harder to group), fewer rack slots (easier to overflow).
+The design tightens three knobs simultaneously: more layers (blocking), more icons (harder to group), fewer rack slots (easier to overflow). The silver time threshold controls star rating — beat this time for a silver star; add combo ×3 for gold.
 
 ### 2.4 LevelDatabase (ScriptableObject)
 
 Optional. Wraps an array of `LevelConfig` assets for bulk lookup. `LevelDatabase.GetLevel(n)` does a linear scan. Not strictly required since `GameplayController` loads configs directly by name convention, but useful for editor tooling and level selection UIs.
+
+### 2.5 Star Rating System
+
+**Decision:** Stars are evaluated on win by `GameState.CalculateStars()` and saved per-level via `SaveService`. The best star count never downgrades.
+
+**Star criteria:**
+
+| Star | Requirement | Visual |
+|------|-------------|--------|
+| ⭐ Bronze | Clear the level (meet targetTriples) | Always awarded on win |
+| ⭐⭐ Silver | Bronze + `timeElapsed` ≤ `silverTimeThreshold` | Time gate, varies per level |
+| ⭐⭐⭐ Gold | Silver + `maxComboAchieved` ≥ 3 | Combo gate, same threshold across all levels |
+
+**Data flow:**
+
+```
+Level win → GameState.CalculateStars()
+         → SaveService.RecordLevelScore(level, triples, time, stars)
+         → Win popup: RevealStars(stars, previousBest) — sequential scale bounce animation
+         → HomeScreen: SaveService.GetBestStars(level) → 3 star icons per level button
+```
+
+**Key design decisions:**
+- `CalculateStars()` self-syncs `maxComboAchieved` from `ComboSystem.MaxComboThisLevel` before scoring — always accurate even if combo expired between last match and win.
+- Stars are **best-ever** — `RecordLevelScore` only writes when `stars > existing.bestStars`.
+- "NEW BEST!" text appears on the win popup whenever `stars > previousBest` (including first-time clears going from 0→1).
+- Star reveal animation uses token-based cancellation — bumped on Restart/GoHome/NextLevel/OnDestroy to prevent orphaned animations on scene transitions.
+- `silverTimeThreshold` flows through both auth paths: `LevelDefinition` (procedural) and `LevelConfig` (ScriptableObject) → `LevelManager` → `GameState` constructor.
+
+**Home screen integration:**
+- Three small star text objects ("★"/"☆") per level button, anchored at button bottom.
+- Colors: bronze = warm orange, silver = gray, gold = yellow, empty = dark gray.
+- Stars display for locked levels too (always empty until unlocked + cleared).
 
 ---
 
@@ -254,23 +334,24 @@ Assets/Scripts/
 │   └── LevelConfig.cs         # ScriptableObject for level data
 ├── Core/
 │   ├── BoardLogic.cs          # Tile list, exposure, grid math, overlap detection
-│   ├── GameState.cs           # Phase machine (Playing/Won/Lost), timer, triples counter
+│   ├── ComboSystem.cs         # Combo streak timer, multiplier tracking, events
+│   ├── GameState.cs           # Phase machine, triples counter, timer, combo, star rating
 │   ├── LevelDatabase.cs       # ScriptableObject wrapper for LevelConfig[]
-│   ├── LevelGenerator.cs      # Procedural level creation + difficulty curve
+│   ├── LevelGenerator.cs      # Procedural level creation + difficulty curve + star thresholds
 │   ├── LevelManager.cs        # Orchestrator: wires Board+Rack+State for one level
 │   ├── RackLogic.cs           # Slot array, icon-sorted insertion, match-3 detection
 │   └── TileData.cs            # Plain C# data model for one tile
 ├── Gameplay/
 │   ├── BoardView.cs           # Renders board tiles, flight animation, particles
-│   ├── GameplayController.cs  # MonoBehaviour bridge: Core ↔ View orchestration
-│   ├── RackView.cs            # Renders rack slots, shift/match-clear animation
+│   ├── GameplayController.cs  # MonoBehaviour bridge: Core ↔ View, star reveal animation
+│   ├── RackView.cs            # Renders rack slots, shift/match-clear animation, combo border pulse
 │   └── TileView.cs            # Single tile renderer with hover/block/exposed states
 ├── Services/
 │   ├── AudioManager.cs        # Singleton: music, tap SFX, match SFX
-│   ├── SaveService.cs         # JSON persistence for player progress
+│   ├── SaveService.cs         # JSON persistence: level progress + star ratings
 │   └── SceneLoader.cs         # Async scene loading with loading screen
 ├── UI/
-│   ├── HomeScreen.cs          # Level select grid (5×2), play button
+│   ├── HomeScreen.cs          # Level select grid (5×2), star display, play button
 │   └── LoadingScreen.cs       # Transition screen
 ├── Editor/
 │   └── SceneGenerator.cs      # Editor tool: generate scenes from templates

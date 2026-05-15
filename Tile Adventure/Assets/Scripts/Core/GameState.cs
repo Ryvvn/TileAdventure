@@ -36,8 +36,14 @@ namespace TileAdventure.Core
         /// <summary> Seconds elapsed since level start (only ticks while Playing). </summary>
         public float timeElapsed;
 
+        /// <summary> Silver star time threshold for this level (from LevelDefinition/LevelConfig). </summary>
+        public float silverTimeThreshold;
+
         /// <summary> Highest combo level achieved this level (for star rating). </summary>
         public int maxComboAchieved;
+
+        /// <summary> Stars earned this run: 1=bronze, 2=silver, 3=gold. </summary>
+        public int starsEarned;
 
         /// <summary> Combo streak tracking — chained matches with escalating multipliers. </summary>
         public ComboSystem Combo { get; private set; }
@@ -51,13 +57,15 @@ namespace TileAdventure.Core
         /// <summary> Fired after each match with the new triplesCleared count. </summary>
         public event Action<int> OnTripleCleared;
 
-        public GameState(int level, int targetTrips, float comboWindowDuration, int maxComboMultiplier)
+        public GameState(int level, int targetTrips, float comboWindowDuration, int maxComboMultiplier, float silverTimeThreshold)
         {
             currentLevel = level;
             targetTriples = targetTrips;
             triplesCleared = 0;
             phase = GamePhase.Playing;
             timeElapsed = 0f;
+            this.silverTimeThreshold = silverTimeThreshold;
+            starsEarned = 0;
             Combo = new ComboSystem(comboWindowDuration, maxComboMultiplier);
         }
 
@@ -88,6 +96,26 @@ namespace TileAdventure.Core
                 phase = GamePhase.Lost;
                 OnLose?.Invoke();
             }
+        }
+
+        /// <summary>
+        /// Compute 1-3 stars based on this level's performance.
+        /// Bronze: always awarded on win. Silver: time <= threshold. Gold: silver + combo >= 3.
+        /// </summary>
+        public int CalculateStars()
+        {
+            SyncComboAchieved();
+
+            int stars = 1;
+
+            if (timeElapsed <= silverTimeThreshold)
+                stars = 2;
+
+            if (stars >= 2 && maxComboAchieved >= 3)
+                stars = 3;
+
+            starsEarned = stars;
+            return stars;
         }
 
         /// <summary>
