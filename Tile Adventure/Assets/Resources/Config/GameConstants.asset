@@ -16,12 +16,12 @@ MonoBehaviour:
   matchCount: 3
   totalTileIcons: 14
   tileSize: {x: 80, y: 80}
-  tileSpacing: 10
-  layerVisualOffset: 10
+  tileSpacing: 0
+  layerVisualOffset: 0
   gridCellWidth: 80
-  gridCellHeight: 80
-  pyramidStaggerOffset: 24
-  layerVerticalOffset: 28
+  gridCellHeight: 40
+  pyramidStaggerOffset: 40
+  layerVerticalOffset: 0
   maxLayers: 5
   tileMoveDuration: 0.3
   tileMatchClearDuration: 0.4
@@ -47,6 +47,14 @@ MonoBehaviour:
   defaultTargetTriples: 4
   defaultLayerCount: 2
   defaultActiveIcons: 6
+  endlessRefillThreshold: 6
+  endlessTriplesPerTier: 3
+  endlessMinRackSlots: 4
+  endlessMaxIcons: 14
+  endlessMaxLayers: 6
+  endlessStartIcons: 5
+  endlessStartLayers: 2
+  endlessStartRackSlots: 7
   loadingSceneName: Loading
   homeSceneName: Home
   gameplaySceneName: Gameplay

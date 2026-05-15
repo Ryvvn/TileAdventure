@@ -25,23 +25,23 @@ namespace TileAdventure.Config
         public Vector2 tileSize = new Vector2(80f, 80f);
 
         [Tooltip("Gap between adjacent tiles on the board and rack.")]
-        public float tileSpacing = 10f;
+        public float tileSpacing = 0f;
 
         [Tooltip("Diagonal pixel offset per layer to make stacked tiles visible.")]
-        public float layerVisualOffset = 10f;
+        public float layerVisualOffset = 0f;
 
-        [Header("Pyramid Layout")]
-        [Tooltip("Horizontal distance between grid cells (less than tile width for overlap).")]
-        public float gridCellWidth = 48f;
+        [Header("Grid Layout")]
+        [Tooltip("Horizontal cell spacing (same as tile width for clean snap in rows).")]
+        public float gridCellWidth = 80f;
 
-        [Tooltip("Vertical distance between grid cells (less than tile height so lower tile peeks through).")]
+        [Tooltip("Vertical cell spacing (half tile height gives quarter overlap between rows).")]
         public float gridCellHeight = 40f;
 
-        [Tooltip("Horizontal stagger for odd rows (creates pyramid/hexagonal feel).")]
-        public float pyramidStaggerOffset = 24f;
+        [Tooltip("Horizontal stagger for odd rows (half tile width = classic quarter-overlap pyramid).")]
+        public float pyramidStaggerOffset = 40f;
 
-        [Tooltip("Vertical shift per layer so lower tiles remain visible below higher layers.")]
-        public float layerVerticalOffset = 28f;
+        [Tooltip("Diagonal pixel offset per layer so higher layers sit atop lower tiles.")]
+        public float layerVerticalOffset = 12f;
 
         [Header("Board")]
         [Tooltip("Maximum number of layers a board can have.")]
@@ -119,6 +119,31 @@ namespace TileAdventure.Config
         public int defaultTargetTriples = 4;
         public int defaultLayerCount = 2;
         public int defaultActiveIcons = 6;
+
+        [Header("Endless Mode")]
+        [Tooltip("Board tile count threshold that triggers a refill.")]
+        public int endlessRefillThreshold = 6;
+
+        [Tooltip("Number of triples between difficulty tier increases.")]
+        public int endlessTriplesPerTier = 3;
+
+        [Tooltip("Minimum rack slots at highest difficulty (floor).")]
+        public int endlessMinRackSlots = 4;
+
+        [Tooltip("Maximum active icons at highest difficulty (cap).")]
+        public int endlessMaxIcons = 14;
+
+        [Tooltip("Maximum board layers at highest difficulty (cap).")]
+        public int endlessMaxLayers = 6;
+
+        [Tooltip("Starting active icons for endless mode tier 1.")]
+        public int endlessStartIcons = 5;
+
+        [Tooltip("Starting board layers for endless mode tier 1.")]
+        public int endlessStartLayers = 2;
+
+        [Tooltip("Starting rack slot count for endless mode tier 1.")]
+        public int endlessStartRackSlots = 7;
 
         [Header("Scene Names")]
         public string loadingSceneName = "Loading";

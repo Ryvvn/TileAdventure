@@ -380,5 +380,30 @@ namespace TileAdventure.Core
                 slot.tile = null;
             }
         }
+
+        /// <summary>
+        /// Reduce the rack slot count. Only shrinks (never grows).
+        /// Returns false if slots to remove still have tiles.
+        /// </summary>
+        public bool TryResize(int newSlotCount)
+        {
+            if (newSlotCount >= _slotCount)
+                return true;
+
+            for (int i = newSlotCount; i < _slotCount; i++)
+            {
+                if (!_slots[i].IsEmpty)
+                    return false;
+            }
+
+            _slots.RemoveRange(newSlotCount, _slots.Count - newSlotCount);
+            _slotCount = newSlotCount;
+            return true;
+        }
+
+        public int GetSlotCount()
+        {
+            return _slotCount;
+        }
     }
 }

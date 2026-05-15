@@ -29,6 +29,46 @@ namespace TileAdventure.Core
         }
 
         /// <summary>
+        /// Validate a LevelConfig for same-layer visual tile overlaps.
+        /// Returns true if the layout is clean (no same-layer overlaps), false otherwise.
+        /// Used to detect and reject old pre-generated configs with overlapping layouts.
+        /// </summary>
+        public static bool ValidateLayout(LevelConfig config)
+        {
+            if (config == null || config.tiles == null) return true;
+
+            var halfSize = new Vector2(40f, 40f);
+            var rectsByLayer = new Dictionary<int, List<Rect>>();
+
+            foreach (var placement in config.tiles)
+            {
+                var worldPos = LevelGridToWorldStatic(placement.gridPosition, placement.layerIndex);
+                var rect = new Rect(worldPos.x - halfSize.x, worldPos.y - halfSize.y, 80f, 80f);
+
+                if (!rectsByLayer.ContainsKey(placement.layerIndex))
+                    rectsByLayer[placement.layerIndex] = new List<Rect>();
+
+                foreach (var existing in rectsByLayer[placement.layerIndex])
+                {
+                    if (rect.Overlaps(existing))
+                        return false;
+                }
+
+                rectsByLayer[placement.layerIndex].Add(rect);
+            }
+
+            return true;
+        }
+
+        private static Vector2 LevelGridToWorldStatic(Vector2Int gridPos, int layer)
+        {
+            var staggerX = (gridPos.y % 2) * 40f;
+            var x = gridPos.x * 80f + staggerX + layer * 12f;
+            var y = gridPos.y * 40f + layer * 12f;
+            return new Vector2(x, y);
+        }
+
+        /// <summary>
         /// Build the board from a pre-authored LevelConfig asset.
         /// Each TilePlacement maps to one TileData with world position computed from grid position.
         /// </summary>
@@ -92,7 +132,12 @@ namespace TileAdventure.Core
                 usedCells[i] = new HashSet<Vector2Int>();
 
             var tilesPerLayer = Mathf.CeilToInt((float)totalTiles / layerCount);
-            var gridSize = Mathf.Max(6, Mathf.CeilToInt(Mathf.Sqrt(tilesPerLayer * 1.5f)));
+            var baseSize = Mathf.Max(3, Mathf.CeilToInt(Mathf.Sqrt(tilesPerLayer)));
+            var gridWidth = baseSize;
+            var gridHeight = baseSize * 2;
+
+            var halfSize = _constants.tileSize * 0.5f;
+            var placedWorldRects = new List<(int layer, Rect rect)>();
 
             for (int t = 0; t < tripleCount; t++)
             {
@@ -102,15 +147,22 @@ namespace TileAdventure.Core
                 {
                     int layer = rng.Next(layerCount);
                     Vector2Int pos;
+                    Vector2 worldPos;
                     int attempts = 0;
                     do
                     {
-                        pos = new Vector2Int(rng.Next(gridSize), rng.Next(gridSize));
+                        pos = new Vector2Int(rng.Next(gridWidth), rng.Next(gridHeight));
+                        worldPos = GridToWorld(pos, layer);
                         attempts++;
                     }
-                    while (usedCells[layer].Contains(pos) && attempts < 50);
+                    while ((usedCells[layer].Contains(pos)
+                        || SameLayerOverlap(layer, new Rect(worldPos.x - halfSize.x, worldPos.y - halfSize.y,
+                            _constants.tileSize.x, _constants.tileSize.y), placedWorldRects))
+                        && attempts < 100);
 
                     usedCells[layer].Add(pos);
+                    placedWorldRects.Add((layer, new Rect(worldPos.x - halfSize.x, worldPos.y - halfSize.y,
+                        _constants.tileSize.x, _constants.tileSize.y)));
                     result.Add((iconId, layer, pos));
                 }
             }
@@ -118,17 +170,31 @@ namespace TileAdventure.Core
             return result;
         }
 
+        private bool SameLayerOverlap(int layer, Rect myRect, List<(int layer, Rect rect)> placed)
+        {
+            foreach (var (pl, pr) in placed)
+            {
+                if (pl == layer && myRect.Overlaps(pr))
+                    return true;
+            }
+            return false;
+        }
+
         /// <summary>
         /// Convert a grid position and layer index to a world-space position on the Canvas.
-        /// Uses pyramid/cascading layout: tight cell spacing so tiles overlap, odd-row stagger
-        /// for hexagonal/pyramid feel, and vertical layer offset so lower tiles peek through.
+        /// Quarter-overlap pyramid: each row is halfTileHeight below the previous,
+        /// odd rows stagger right by halfTileWidth. This creates 40×40 = ¼-area overlap
+        /// between diagonally adjacent tiles. Two covering tiles = half covered.
+        /// Higher layers shift diagonally (layerVerticalOffset per layer) for depth.
         ///
-        /// Layout: gridCellWidth=48, gridCellHeight=40 (both less than tileSize=80 → tiles overlap)
-        ///         pyramidStaggerOffset=24 (half cellWidth, offset on odd rows)
-        ///         layerVerticalOffset=28 (higher layers shift up, lower layers peek from bottom)
+        /// Layout: gridCellWidth=80, gridCellHeight=40, pyramidStaggerOffset=40
+        ///         layerVerticalOffset=12
         ///
-        /// Example: grid(0,0) layer0 → (0,0), grid(0,0) layer1 → (28,28)
-        ///          grid(1,0) layer0 → (48,0), grid(0,1) layer0 → (24,40) [odd row stagger]
+        /// Example:
+        ///   grid(0,0) layer0 → (0,0)     grid(1,0) layer0 → (80,0)
+        ///   grid(0,1) layer0 → (40,40)   grid(1,1) layer0 → (120,40)
+        ///   grid(0,0) layer1 → (12,12)   grid(0,1) layer1 → (52,52)
+        ///   Overlap: (0,0)L0 + (0,1)L0 → 40×40 = ¼ tile area
         /// </summary>
         public Vector2 GridToWorld(Vector2Int gridPos, int layer)
         {
@@ -136,6 +202,28 @@ namespace TileAdventure.Core
             var x = gridPos.x * _constants.gridCellWidth + staggerX + layer * _constants.layerVerticalOffset;
             var y = gridPos.y * _constants.gridCellHeight + layer * _constants.layerVerticalOffset;
             return new Vector2(x, y);
+        }
+
+        /// <summary>
+        /// Check if a proposed tile position would visually overlap any existing tile
+        /// on the same layer. Uses world-space rect overlap with tileSize.
+        /// </summary>
+        public bool WouldOverlapSameLayer(int layer, Vector2 worldPos, List<TileData> existingTiles)
+        {
+            var halfSize = _constants.tileSize * 0.5f;
+            var myRect = new Rect(worldPos.x - halfSize.x, worldPos.y - halfSize.y,
+                _constants.tileSize.x, _constants.tileSize.y);
+
+            foreach (var tile in existingTiles)
+            {
+                if (tile.isRemoved || tile.layerIndex != layer) continue;
+                var otherRect = new Rect(tile.worldPosition.x - halfSize.x,
+                    tile.worldPosition.y - halfSize.y,
+                    _constants.tileSize.x, _constants.tileSize.y);
+                if (myRect.Overlaps(otherRect))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -221,6 +309,95 @@ namespace TileAdventure.Core
             foreach (var t in _allTiles)
                 if (!t.isRemoved) count++;
             return count;
+        }
+
+        /// <summary>
+        /// Generate and add new tiles to the board for endless mode refill.
+        /// Uses triple-first construction with the given difficulty params.
+        /// New tiles are placed on the same layers as existing tiles, avoiding occupied cells.
+        /// Returns the list of newly created TileData for view cascade animation.
+        /// </summary>
+        public List<TileData> AddRefillTiles(int tileCount, int activeIcons, int layerCount)
+        {
+            var rng = new System.Random();
+            var newTiles = new List<TileData>();
+
+            var maxId = 0;
+            foreach (var t in _allTiles)
+                if (t.tileId >= maxId) maxId = t.tileId;
+            var nextId = maxId + 1;
+
+            var layerCountActual = Math.Max(layerCount, 1);
+
+            var usedCells = new HashSet<Vector2Int>[layerCountActual];
+            for (int i = 0; i < layerCountActual; i++)
+                usedCells[i] = new HashSet<Vector2Int>();
+
+            foreach (var tile in _allTiles)
+            {
+                if (!tile.isRemoved && tile.layerIndex < layerCountActual)
+                    usedCells[tile.layerIndex].Add(tile.gridPosition);
+            }
+
+            var tripleCount = tileCount / _constants.matchCount;
+            var tilesPerLayer = Mathf.CeilToInt((float)tileCount / layerCountActual);
+            var baseSize = Mathf.Max(3, Mathf.CeilToInt(Mathf.Sqrt(tilesPerLayer)));
+            var refillGridWidth = baseSize;
+            var refillGridHeight = baseSize * 2;
+
+            var halfSize = _constants.tileSize * 0.5f;
+            var allWorldRects = new List<(int layer, Rect rect)>();
+
+            foreach (var tile in _allTiles)
+            {
+                if (tile.isRemoved) continue;
+                allWorldRects.Add((tile.layerIndex, new Rect(
+                    tile.worldPosition.x - halfSize.x, tile.worldPosition.y - halfSize.y,
+                    _constants.tileSize.x, _constants.tileSize.y)));
+            }
+
+            for (int t = 0; t < tripleCount; t++)
+            {
+                int iconId = rng.Next(activeIcons);
+
+                for (int i = 0; i < _constants.matchCount; i++)
+                {
+                    int maxRefillLayer = Math.Max(1, (layerCountActual + 1) / 2);
+                    int layer = rng.Next(maxRefillLayer);
+                    Vector2Int pos;
+                    Vector2 worldPos;
+                    int attempts = 0;
+                    do
+                    {
+                        pos = new Vector2Int(rng.Next(refillGridWidth), rng.Next(refillGridHeight));
+                        worldPos = GridToWorld(pos, layer);
+                        attempts++;
+                    }
+                    while ((usedCells[layer].Contains(pos)
+                        || SameLayerOverlap(layer, new Rect(worldPos.x - halfSize.x, worldPos.y - halfSize.y,
+                            _constants.tileSize.x, _constants.tileSize.y), allWorldRects))
+                        && attempts < 100);
+
+                    usedCells[layer].Add(pos);
+
+                    allWorldRects.Add((layer, new Rect(worldPos.x - halfSize.x, worldPos.y - halfSize.y,
+                        _constants.tileSize.x, _constants.tileSize.y)));
+                    var tile = new TileData(nextId++, iconId, layer, pos, worldPos);
+                    newTiles.Add(tile);
+                    _allTiles.Add(tile);
+                }
+            }
+
+            var bumpCount = Math.Max(1, (layerCountActual + 1) / 2);
+            foreach (var tile in _allTiles)
+            {
+                if (tile.isRemoved) continue;
+                if (newTiles.Contains(tile)) continue;
+                tile.layerIndex += bumpCount;
+            }
+
+            RefreshExposure();
+            return newTiles;
         }
     }
 }
