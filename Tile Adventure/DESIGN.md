@@ -86,7 +86,7 @@ public class TileData {
 **Decision:** Three scenes with a lightweight bootstrapper.
 
 ```
-Loading → Home → Gameplay → (win/lose) → Home (or restart)
+Loading → Home → Gameplay (campaign or endless) → (win/lose/game-over) → Home (or restart)
 ```
 
 `SceneBootstrapper` handles Camera configuration and `CanvasScaler` setup per scene. Each scene's logic starts from its own entry point (`HomeScreen.Start()`, `GameplayController.Start()`). `SceneLoader` wraps `SceneManager.LoadSceneAsync` with a loading screen fade.
@@ -138,6 +138,101 @@ GameState
 - `GameplayController.Update()` calls `State.Combo.Tick(Time.deltaTime)` via `LevelManager.Tick()`
 - Combo text animation reuses the existing async `Task.Yield()` pattern (consistent with tile flight)
 
+### 1.6 Endless Mode
+
+**Decision:** Endless mode reuses the Gameplay scene with a `PlayerPrefs` mode flag, branching at `GameplayController.Start()` to create either a `LevelManager` (campaign) or `EndlessLevelManager` (endless). No separate scene — shared view prefabs, different core orchestrator.
+
+```
+GameplayController (MonoBehaviour)
+    ├── [SelectedMode=0] LevelManager (campaign)
+    │       ├── BoardLogic → finite board, targetTriples win
+    │       ├── RackLogic  → sort-by-icon, match detection
+    │       └── GameState  → phase machine, triples counter, win check, star rating
+    │
+    └── [SelectedMode=1] EndlessLevelManager (endless)
+            ├── BoardLogic → dynamic board with refill
+            ├── RackLogic  → resizable rack (TryResize on tier ramp)
+            └── EndlessGameState → score, tier, no win, always lose
+```
+
+**Key design decisions:**
+- `EndlessGameState` omits `targetTriples` and `RecordTripleCleared()` never checks for a win — `MarkLost()` is the only exit.
+- `EndlessLevelManager.CheckRefill()` runs after every match clear. If alive tile count ≤ `endlessRefillThreshold`, it calls `BoardLogic.AddRefillTiles()` and fires `OnRefillGenerated` for the view cascade.
+- Difficulty ramp: every `endlessTriplesPerTier` (default 3) triples advances the tier. Icons = `min(startIcons + tier - 1, maxIcons)`. Layers = `startLayers + (tier - 1) / 2`. Rack slots = `max(startRackSlots - (tier - 1) / 3, minRackSlots)`.
+- Existing tiles are **bumped** to higher layers on each refill (`layerIndex += (layerCount+1)/2`) so new refill tiles stay beneath them — older tiles always block newer ones.
+- `RackLogic.TryResize()` shrinks the rack on tier ramp. Only shrinks, never grows, and refuses if trimmed slots hold tiles.
+- `SaveData.bestEndlessScore` persists the highest triple count across runs. "NEW BEST!" pulse animation on the Game Over popup when PB is broken.
+- HUD displays "Tier N" and "Score: N" instead of "Level N" and "N / M".
+- Cancelation tokens (`_gameOverToken`) prevent orphaned Game Over popup animations on scene transitions.
+
+**Endless mode constants** (in `GameConstants`):
+
+| Constant | Default | Role |
+|----------|---------|------|
+| `endlessRefillThreshold` | 6 | Board tile count that triggers a refill |
+| `endlessTriplesPerTier` | 3 | Triples between difficulty tier increases |
+| `endlessMinRackSlots` | 4 | Rack slot floor at highest difficulty |
+| `endlessMaxIcons` | 14 | Active icon cap (all available icons) |
+| `endlessMaxLayers` | 6 | Layer cap at highest difficulty |
+| `endlessStartIcons` | 5 | Starting icons for tier 1 |
+| `endlessStartLayers` | 2 | Starting layers for tier 1 |
+| `endlessStartRackSlots` | 7 | Starting rack size for tier 1 |
+
+**Difficulty ramp table** (from GDD):
+
+| Tier | Triples | Icons | Layers | Rack Slots |
+|------|---------|-------|--------|------------|
+| 1 | 0-2 | 5 | 2 | 7 |
+| 2 | 3-5 | 6 | 2 | 7 |
+| 3 | 6-8 | 7 | 3 | 7 |
+| 4 | 9-11 | 7 | 3 | 6 |
+| 5 | 12-14 | 8 | 3 | 6 |
+| 6 | 15-17 | 8 | 4 | 6 |
+| 7 | 18-20 | 9 | 4 | 6 |
+| 8 | 21-23 | 9 | 4 | 5 |
+| 9 | 24-26 | 10 | 5 | 5 |
+| 10 | 27-29 | 10 | 5 | 5 |
+| 11+ | 30+ | 14 (cap) | 5 (cap) | 4 (floor) |
+
+### 1.7 Grid Layout — Quarter-Overlap Pyramid
+
+**Decision:** Tiles are placed on a staggered pyramid grid where each cell is `gridCellWidth × gridCellHeight` (80×40), odd rows stagger right by `pyramidStaggerOffset` (40 = half tile width), and higher layers shift diagonally by `layerVerticalOffset` (12) per layer.
+
+**Constants:**
+
+| Constant | Value | Effect |
+|----------|-------|--------|
+| `gridCellWidth` | 80 | Same as tile width — tiles snap edge-to-edge horizontally |
+| `gridCellHeight` | 40 | Half tile height — each row peeks 40px into the row below |
+| `pyramidStaggerOffset` | 40 | Half tile width stagger on odd rows |
+| `layerVerticalOffset` | 12 | Diagonal per-layer shift for depth |
+
+**The ¼-overlap geometry:**
+
+```
+Row 0:  [A at (0,0)]  [B at (80,0)]  [C at (160,0)]
+Row 1:    [D at (40,40)]  [E at (120,40)]
+```
+
+Tile D at `(40,40)` overlaps A at `(0,0)` by exactly 40×40 pixels — **¼ of the tile area**. If an additional tile exists at `(-40,40)` (below-left of A), both D and that tile each cover ¼ of A → **half covered**. This creates the classic mahjong-solitaire visual where tiles cascade in a pyramid with partial diagonal overlap.
+
+**World position formula** (`BoardLogic.GridToWorld`):
+
+```
+x = gridPos.x × gridCellWidth + (gridPos.y % 2) × pyramidStaggerOffset + layer × layerVerticalOffset
+y = gridPos.y × gridCellHeight + layer × layerVerticalOffset
+```
+
+### 1.8 Same-Layer Overlap Guard
+
+**Decision:** During tile layout generation, every candidate world-space position is checked against all already-placed tiles on the same layer. If their 80×80 rects overlap, the position is rejected and a new random position is tried.
+
+**Why:** Same-layer tiles at adjacent diagonal grid positions (e.g., grid(0,0) and grid(0,1)) have overlapping world rects despite different grid cells. Without this guard, two tiles on the same layer render on top of each other — confusing click targets and ugly visual stacking.
+
+**Implementation:** All three generators (`BoardLogic.GenerateSolvableLayout`, `LevelGenerator.GenerateSolvableLayout`, `BoardLogic.AddRefillTiles`) maintain a list of `(layer, Rect)` tuples for placed tiles. The `SameLayerOverlap()` helper checks new candidate rects against the list before committing a placement. The retry loop (up to 100-200 attempts) keeps spinning until a clean slot is found.
+
+**LevelConfig validation:** `BoardLogic.ValidateLayout()` walks any loaded `LevelConfig` asset and rejects it if same-layer overlaps are detected. Old assets generated before the guard existed are silently replaced by procedural fallback at runtime. `LevelGenerator.GenerateLevelConfig()` also retries with incrementing seeds (up to 50 attempts) until the generated layout passes `ValidateTiles()`.
+
 ---
 
 ## 2. How Level Data Is Structured
@@ -170,9 +265,14 @@ Created via Editor menu `TileAdventure > Generate Level Assets`, which calls `Le
 ```csharp
 var config = Resources.Load<LevelConfig>($"Config/Levels/Level_{levelNumber:D2}");
 if (config != null)
-    _levelManager.LoadLevel(config);         // hand-authored tiles
+{
+    if (BoardLogic.ValidateLayout(config))
+        _levelManager.LoadLevel(config);         // hand-authored tiles
+    else
+        _levelManager.LoadLevelProcedural(...);  // overlap detected — fallback
+}
 else
-    _levelManager.LoadLevelProcedural(...);  // procedural fallback
+    _levelManager.LoadLevelProcedural(...);      // asset missing — fallback
 ```
 
 This means level designers can author levels in the Editor, or the game can generate levels on the fly. Both paths converge into `BoardLogic` which doesn't care where the tile list came from.
@@ -267,7 +367,7 @@ FOR each tile A (not removed):
         A.isExposed = true      (tappable!)
 ```
 
-Overlap detection uses world-space rectangle intersection (`TileData.Overlaps`). The staggered pyramid grid layout (odd rows offset horizontally) plus the layer vertical offset means tiles partially overlap rather than fully cover each other — this creates the visual "cascading stack" effect and ensures lower tiles peek through gaps.
+Overlap detection uses world-space rectangle intersection (`TileData.Overlaps`). The quarter-overlap pyramid grid layout (odd rows staggered by half-tile-width, each row offset by half-tile-height from the previous) plus the layer vertical offset means tiles partially overlap rather than fully cover each other — this creates the classic mahjong-solitaire "cascading stack" effect and ensures lower tiles peek through gaps.
 
 ### 3.3 Rack Sorting Guarantees
 
@@ -289,6 +389,11 @@ This guarantees that three matching tiles always land adjacently as long as no o
 | Player taps during animation | `isMoving` flag blocks interaction |
 | Save file corrupted | `SaveService` catches exception, returns fresh `SaveData` |
 | LevelConfig asset missing | Falls back to procedural generation with correct difficulty params |
+| LevelConfig has same-layer overlap | `ValidateLayout()` fails → falls back to procedural generation |
+| Board refill with zero exposed tiles | Triple-first construction guarantees at least one tile of each triple is on a reachable layer |
+| Endless tier ramp during animation | Ramp triggers after `RegisterMatch()` (post-animation). Combo timer keeps ticking independently |
+| Endless 100+ triple run | Board stabilizes at ~24 tiles (refill threshold + new batch). Score display handles 3+ digits |
+| Endless rack shrink with occupied slots | `TryResize()` returns false, rack stays at current size — gracefully delays shrink to next refill |
 
 ---
 
@@ -321,7 +426,7 @@ This guarantees that three matching tiles always land adjacently as long as no o
 
 7. **Localization** — All strings (level names, button labels, win/lose text) are currently hardcoded. A simple `LocalizationService` with a JSON dictionary would be a quick win for multi-language support.
 
-8. **Endless Mode Architecture** — The current `LevelManager` is designed for finite levels with a `targetTriples` win condition. Endless mode needs a different win condition (none — you always eventually lose) and a dynamic difficulty ramp rather than static definitions.
+8. **Endless Mode Architecture** ~~— The current `LevelManager` is designed for finite levels with a `targetTriples` win condition. Endless mode needs a different win condition (none — you always eventually lose) and a dynamic difficulty ramp rather than static definitions.~~ **✓ Implemented** — `EndlessLevelManager` + `EndlessGameState` handle survival gameplay with dynamic tier ramp, board refill, and resizable rack.
 
 ---
 
@@ -333,25 +438,27 @@ Assets/Scripts/
 │   ├── GameConstants.cs       # Tuning values (tile sizes, animation speeds, etc.)
 │   └── LevelConfig.cs         # ScriptableObject for level data
 ├── Core/
-│   ├── BoardLogic.cs          # Tile list, exposure, grid math, overlap detection
+│   ├── BoardLogic.cs          # Tile list, exposure, grid math, overlap detection, refill, validation
 │   ├── ComboSystem.cs         # Combo streak timer, multiplier tracking, events
+│   ├── EndlessGameState.cs    # Endless state machine: score, tier, no win, always lose
+│   ├── EndlessLevelManager.cs # Endless orchestrator: refill, tier ramp, resizable rack
 │   ├── GameState.cs           # Phase machine, triples counter, timer, combo, star rating
 │   ├── LevelDatabase.cs       # ScriptableObject wrapper for LevelConfig[]
-│   ├── LevelGenerator.cs      # Procedural level creation + difficulty curve + star thresholds
+│   ├── LevelGenerator.cs      # Procedural level creation + difficulty curve + star thresholds + overlap validation
 │   ├── LevelManager.cs        # Orchestrator: wires Board+Rack+State for one level
-│   ├── RackLogic.cs           # Slot array, icon-sorted insertion, match-3 detection
+│   ├── RackLogic.cs           # Slot array, icon-sorted insertion, match-3 detection, resize
 │   └── TileData.cs            # Plain C# data model for one tile
 ├── Gameplay/
-│   ├── BoardView.cs           # Renders board tiles, flight animation, particles
-│   ├── GameplayController.cs  # MonoBehaviour bridge: Core ↔ View, star reveal animation
+│   ├── BoardView.cs           # Renders board tiles, flight animation, particles, refill cascade, debug grid overlay
+│   ├── GameplayController.cs  # MonoBehaviour bridge: Core ↔ View, campaign/endless branching, star reveal, game over
 │   ├── RackView.cs            # Renders rack slots, shift/match-clear animation, combo border pulse
 │   └── TileView.cs            # Single tile renderer with hover/block/exposed states
 ├── Services/
 │   ├── AudioManager.cs        # Singleton: music, tap SFX, match SFX
-│   ├── SaveService.cs         # JSON persistence: level progress + star ratings
+│   ├── SaveService.cs         # JSON persistence: level progress + star ratings + endless best score
 │   └── SceneLoader.cs         # Async scene loading with loading screen
 ├── UI/
-│   ├── HomeScreen.cs          # Level select grid (5×2), star display, play button
+│   ├── HomeScreen.cs          # Level select grid (5×2), star display, play button, endless mode button
 │   └── LoadingScreen.cs       # Transition screen
 ├── Editor/
 │   └── SceneGenerator.cs      # Editor tool: generate scenes from templates

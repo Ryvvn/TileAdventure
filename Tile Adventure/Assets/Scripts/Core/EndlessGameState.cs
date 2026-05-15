@@ -2,6 +2,14 @@ using System;
 
 namespace TileAdventure.Core
 {
+    /// <summary>
+    /// Plain C# state machine for an endless mode run.
+    /// Tracks score (triplesCleared), difficulty tier, and game phase.
+    /// No win condition — the only exit is rack overflow (lose).
+    ///
+    /// Tier is computed as 1 + (triplesCleared / triplesPerTier) and fires
+    /// OnTierChanged when the player crosses a tier boundary.
+    /// </summary>
     public class EndlessGameState
     {
         public int triplesCleared;

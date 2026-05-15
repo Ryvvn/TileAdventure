@@ -3,6 +3,20 @@ using TileAdventure.Config;
 
 namespace TileAdventure.Core
 {
+    /// <summary>
+    /// Orchestrator for endless mode — wires BoardLogic, RackLogic, EndlessGameState,
+    /// and ComboSystem into a survival gameplay loop.
+    ///
+    /// Key responsibilities:
+    ///   - Board refill: when alive tile count ≤ endlessRefillThreshold, generates new tiles
+    ///     via BoardLogic.AddRefillTiles and fires OnRefillGenerated for the view cascade.
+    ///   - Difficulty ramp: recalculates active icons, layer count, and rack slot count
+    ///     each time the tier changes. Existing tiles are bumped to higher layers so new
+    ///     refill tiles sit beneath them.
+    ///   - Tier caps: icons ≤ endlessMaxIcons, layers ≤ endlessMaxLayers, rack ≥ endlessMinRackSlots.
+    ///
+    /// This is a plain C# class — no MonoBehaviour. GameplayController drives Tick() each frame.
+    /// </summary>
     public class EndlessLevelManager
     {
         private readonly GameConstants _constants;

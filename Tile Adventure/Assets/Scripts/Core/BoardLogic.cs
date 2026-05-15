@@ -95,7 +95,9 @@ namespace TileAdventure.Core
 
         /// <summary>
         /// Generate a random board with the given difficulty parameters.
-        /// Uses the same solvability algorithm as LevelGenerator (triple-first construction).
+        /// Uses triple-first construction with same-layer overlap guard.
+        /// Grid is 2:1 aspect (width=baseSize, height=baseSize×2) to match the
+        /// quarter-overlap pyramid layout (gridCellHeight=halfTileHeight).
         /// </summary>
         public void GenerateBoard(int targetTriples, int layerCount, int activeIcons)
         {
@@ -170,6 +172,10 @@ namespace TileAdventure.Core
             return result;
         }
 
+        /// <summary>
+        /// Check whether a world-space rect overlaps any already-placed tile on the same layer.
+        /// Used during layout generation to prevent same-layer visual stacking.
+        /// </summary>
         private bool SameLayerOverlap(int layer, Rect myRect, List<(int layer, Rect rect)> placed)
         {
             foreach (var (pl, pr) in placed)
